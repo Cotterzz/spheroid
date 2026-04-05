@@ -1,0 +1,453 @@
+
+
+
+
+🧑
+Human
+
+This is the physics module for a ball game.
+It is very rudimentary in that its frame based, so at speed, things can pass through each other or bounce incorrectly.
+I want to upgrade to somehting that will give us real ball physics with no frame gaps.
+though I suspect this isnt trivial.
+here's the code, what do you recommend? (no code solution just recommended options..)
+import * as C from '../config.js';
+
+export class Physics {
+  constructor(world) { this.world = world; }
+
+  // --- Public actions ---------------------------------------------
+
+  slow() {
+    const w = this.world;
+    if (w.ballCarrierIndex === w.playerIndex && !w.slowing) {
+      w.slowing = true;
+    }
+  }
+
+  fast() {
+    const w = this.world;
+    const wasPlayerCarrier = w.ballCarrierIndex === w.playerIndex;
+    w.delta = C.PHYSICS.defaultDelta;
+    w.hook  = C.PHYSICS.postShootHook;
+    w.slowing = false;
+    if (wasPlayerCarrier) this.shoot(w.entities[w.playerIndex]);
+  }
+
+  shoot(carrier) {
+    const w = this.world;
+    const ball = w.ball;
+    w.ballCarrier = null;
+    w.ballCarrierIndex = 0;
+    const a = carrier.angle - C.HALF_PI;
+    ball.vx = carrier.vx + w.power * Math.cos(a);
+    ball.vy = carrier.vy + w.power * Math.sin(a);
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+    w.power = C.PHYSICS.defaultPower;
+  }
+
+  score(_side) {
+    const w = this.world;
+    w.ball.x = 0; w.ball.y = 0;
+    w.ball.vx = 0; w.ball.vy = 0;
+    w.ballCarrier = null;
+    w.ballCarrierIndex = 0;
+  }
+
+  // --- Main update ------------------------------------------------
+
+  update() {
+    const w = this.world;
+
+    if (w.slowing) {
+      if (w.delta > C.PHYSICS.minDelta) w.delta *= C.PHYSICS.slowDecay;
+      if (w.hook  > C.PHYSICS.minHook ) w.hook  *= C.PHYSICS.slowDecay;
+      if (w.power < C.PHYSICS.maxPower) w.power *= C.PHYSICS.powerGrowth;
+    }
+
+    for (let i = 0; i < w.entities.length; i++) this._updateEntity(i);
+    this._computeNearest();
+  }
+
+  _updateEntity(i) {
+    const w = this.world;
+    const e = w.entities[i];
+
+    // Snap ball to carrier
+    if (e.isBall && w.ballCarrier) {
+      const c = w.ballCarrier;
+      const a = c.angle - C.HALF_PI;
+      e.x = c.x + C.PHYSICS.hookOffset * w.hook * Math.cos(a);
+      e.y = c.y + C.PHYSICS.hookOffset * w.hook * Math.sin(a);
+    }
+
+    // Integrate
+    e.x += e.vx * w.delta;
+    e.y += e.vy * w.delta;
+    e.vx *= C.PHYSICS.damp;
+    e.vy *= C.PHYSICS.damp;
+
+    this._applyBounds(e);
+
+    if (Math.abs(e.vx) + Math.abs(e.vy) < C.PHYSICS.stopV) {
+      e.vx = 0; e.vy = 0;
+    }
+
+    // Pairwise collisions (upper triangle)
+    for (let j = i + 1; j < w.entities.length; j++) {
+      this._collide(e, w.entities[j]);
+    }
+
+    if (e.isBall) this._updateBall();
+    else          this._updateRobot(i, e);
+  }
+
+  _applyBounds(e) {
+    const L = e.limits;
+    if (e.isBall) {
+      const inGoal = e.y < C.WORLD.goalTop && e.y > C.WORLD.goalBottom;
+      if (!inGoal) {
+        if (e.x > L.right) { e.x = L.right; e.vx = -e.vx; }
+        if (e.x < L.left ) { e.x = L.left;  e.vx = -e.vx; }
+      }
+      if (e.x > L.right + C.WORLD.scoreExtra) this.score('A');
+      if (e.x < L.left  - C.WORLD.scoreExtra) this.score('B');
+    } else {
+      if (e.x > L.right) { e.x = L.right; e.vx = -e.vx; }
+      if (e.x < L.left ) { e.x = L.left;  e.vx = -e.vx; }
+    }
+    if (e.y > L.top   ) { e.y = L.top;    e.vy = -e.vy; }
+    if (e.y < L.bottom) { e.y = L.bottom; e.vy = -e.vy; }
+  }
+
+  _collide(a, b) {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const rSum = a.radius + b.radius;
+    if (dist >= rSum || dist === 0) return;
+
+    const ang = Math.atan2(dy, dx);
+    const cs = Math.cos(ang), sn = Math.sin(ang);
+
+    // Rotate into collision frame
+    const ax = cs * a.vx + sn * a.vy;
+    const ay = cs * a.vy - sn * a.vx;
+    const bx = cs * b.vx + sn * b.vy;
+    const by = cs * b.vy - sn * b.vx;
+
+    // 1D elastic collision along x
+    const P = ax * a.mass + bx * b.mass;
+    const V = ax - bx;
+    const axp = (P - b.mass * V) / (a.mass + b.mass);
+    const bxp = V + axp;
+
+    // Rotate back
+    a.vx = cs * axp - sn * ay;
+    a.vy = cs * ay  + sn * axp;
+    b.vx = cs * bxp - sn * by;
+    b.vy = cs * by  + sn * bxp;
+
+    // Resolve overlap
+    const push = (rSum - dist) / 2;
+    a.x -= cs * push; a.y -= sn * push;
+    b.x += cs * push; b.y += sn * push;
+  }
+
+  _updateBall() {
+    const w = this.world;
+    if (!w.ballCarrier) return;
+    const c = w.ballCarrier;
+    const a = c.angle - C.HALF_PI;
+    const hx = c.x + w.hook * Math.cos(a);
+    const hy = c.y + w.hook * Math.sin(a);
+    const dx = w.ball.x - hx, dy = w.ball.y - hy;
+    if (Math.hypot(dx, dy) > C.PHYSICS.releaseDist) {
+      w.ball.vx = c.vx;
+      w.ball.vy = c.vy;
+      w.ballCarrier = null;
+      w.ballCarrierIndex = 0;
+    }
+  }
+
+  _updateRobot(i, e) {
+    const w = this.world;
+    const ball = w.ball;
+    const isHuman = (i === w.playerIndex);
+
+    e.ballDist = Math.hypot(ball.x - e.x, ball.y - e.y);
+
+    // Target vector
+    let dx = e.targetX - e.x;
+    let dy = e.targetY - e.y;
+    e.targetAngle = Math.atan2(dy, dx);
+    e.angle = e.angle % C.TWO_PI;
+    e.targetDist = Math.hypot(dx, dy);
+
+    // Desired speed
+    const isChaser  = (i === w.nearestRed || i === w.nearestGreen) && (w.ballCarrierIndex !== i);
+    const isCarrier = (w.ballCarrierIndex === i && !isHuman);
+    if (e.targetDist > C.PHYSICS.closeDist || isChaser || isCarrier) {
+      e.desiredSpeed = e.maxVel;
+    } else {
+      e.desiredSpeed = e.maxVel * (e.targetDist / C.PHYSICS.closeDist);
+    }
+
+    // Steering toward target
+    const wantVX = e.desiredSpeed * Math.cos(e.targetAngle);
+    const wantVY = e.desiredSpeed * Math.sin(e.targetAngle);
+    const facing = e.angle - C.HALF_PI;
+    let diff = wrapAngle(e.targetAngle - facing);
+
+    if (Math.abs(diff) < C.PHYSICS.angleLockThreshold) {
+      e.vx += (wantVX - e.vx) / C.PHYSICS.agility;
+      e.vy += (wantVY - e.vy) / C.PHYSICS.agility;
+    }
+    let angleInc = diff / 10;
+
+    // Close to destination (and AI): re-orient toward the ball
+    if (e.targetDist < 1 && !isHuman) {
+      const bAng = Math.atan2(ball.y - e.y, ball.x - e.x);
+      angleInc = wrapAngle(bAng - facing) / 10;
+    }
+
+    e.angle += angleInc * w.delta;
+
+    // AI carrier: auto-shoot when target reached
+    if (w.ballCarrierIndex === i && e.targetDist < C.PHYSICS.shootDist && !isHuman) {
+      this.shoot(e);
+    }
+
+    // Pickup check
+    if (!w.ballCarrier) {
+      const hx = e.x + w.hook * Math.cos(facing);
+      const hy = e.y + w.hook * Math.sin(facing);
+      const pdx = ball.x - hx, pdy = ball.y - hy;
+      if (Math.hypot(pdx, pdy) < C.PHYSICS.pickupDist) {
+        w.ballCarrier = e;
+        w.ballCarrierIndex = i;
+        if (i < C.GREEN_RANGE[0]) w.playerIndex = i;
+      }
+    }
+  }
+
+  _computeNearest() {
+    const w = this.world;
+    w.nearestRed   = nearestIn(w.entities, C.RED_RANGE);
+    w.nearestGreen = nearestIn(w.entities, C.GREEN_RANGE);
+  }
+}
+
+function nearestIn(entities, [start, end]) {
+  let near = start;
+  for (let i = start; i < end; i++) {
+    if (entities[i].ballDist < entities[near].ballDist) near = i;
+  }
+  return near;
+}
+
+function wrapAngle(a) {
+  if (a >  C.PI) a -= C.TWO_PI;
+  if (a < -C.PI) a += C.TWO_PI;
+  return a;
+}
+🤖
+assistant
+
+Physics Upgrade Recommendations
+You're right that this isn't trivial. The core issue is tunneling (fast objects passing through each other or walls between frames). Here are your realistic options, ordered from least to most invasive:
+
+Option 1: Fixed Timestep with Sub-stepping ⭐ Recommended starting point
+What it is: Keep your existing code almost as-is, but run the update() loop multiple times per frame with a smaller delta. Use an accumulator pattern (Glenn Fiedler's "Fix Your Timestep").
+
+Pros:
+
+Minimal code changes — your collision math stays identical
+Deterministic, frame-rate independent
+Solves 90% of tunneling for moderate speeds
+Easy to tune (more substeps = more accuracy)
+Cons:
+
+Still discrete — a very fast ball can still tunnel
+Linear cost increase with substep count
+Effort: Low (1–2 hours)
+
+Option 2: Swept / Continuous Collision Detection (CCD)
+What it is: Instead of checking "are we overlapping now?", you solve for when (time t ∈ [0,1]) two moving circles first touch during this frame. For circle-circle it's a quadratic equation; for circle-wall it's a ray-vs-line test.
+
+Pros:
+
+True "no-gap" physics — no tunneling regardless of speed
+Physically correct bounce positions and timing
+Cons:
+
+Significantly more complex — you need a TOI (time-of-impact) solver, then process collisions in time order, then advance remaining time
+Multiple collisions in one frame require iterating/re-solving
+Your current _collide resolution logic needs rework (resolve at contact point, not after overlap)
+Edge cases: resting contact, simultaneous collisions, numerical jitter
+Effort: High (days), but the math is well-documented
+
+Option 3: Hybrid — Substeps + Swept Walls Only
+What it is: Use fixed substeps (Option 1) for entity-vs-entity, but use swept/analytical tests for ball-vs-wall and ball-vs-goal. Walls are where tunneling is most visible and most embarrassing.
+
+Pros:
+
+Catches the worst tunneling case (ball through goal wall) cheaply
+Much simpler than full CCD
+Good effort-to-payoff ratio
+Cons:
+
+Robot-vs-ball tunneling still possible at extreme speeds (but substeps mitigate)
+Effort: Medium
+
+Option 4: Drop in a 2D Physics Engine
+Libraries: Matter.js, Planck.js (Box2D port), Rapier (Rust/WASM, very fast).
+
+Pros:
+
+Battle-tested CCD, constraints, stable stacking, etc.
+You stop maintaining physics code
+Cons:
+
+Big architectural change — entities become bodies, you drive them with forces/impulses instead of direct velocity writes
+Your "snap ball to carrier" and "hook offset" logic needs to become a constraint/joint or a kinematic override
+Bundle size
+Loss of the tight, game-feel control you currently have over arcade-style collisions
+Effort: High, and changes the feel of the game
+
+Other Issues I'd Fix Regardless
+A few things in the current code that are worth addressing alongside whichever option you pick:
+
+delta scales velocity but not collision detection. When delta is large (fast mode), you integrate a big step but collision checks happen after, so overlaps can be huge. Substepping fixes this automatically.
+_collide resolves overlap by splitting push 50/50 regardless of mass — fine for arcade feel, but inconsistent with the mass-based velocity response.
+Collisions are processed inside the per-entity loop, so an entity that's already been integrated this frame collides with one that hasn't. Separate the passes: integrate all → detect all → resolve all.
+Ball snapping happens before integration, then the ball is integrated anyway with its old vx/vy. Minor but worth cleaning up.
+Damping is v *= damp per frame — not framerate-independent. With substeps you'd want v *= damp^dt.
+My Recommendation
+For a ball game with arcade feel, go Option 1 (substepping) + fix the issues above, and only move to Option 3 if you still see ball-through-wall bugs after tuning. Full CCD (Option 2) or a physics engine (Option 4) is overkill unless you need rock-solid simulation or are building something much more complex.
+
+The sweet spot: run 4–8 substeps per frame, separate integrate/collide/resolve passes, make damping dt-aware. That's probably an afternoon's work and will feel dramatically better without rewriting your collision math.
+
+Want me to sketch out what the substepping restructure would look like?
+
+🧑
+Human
+
+Can you make the necessary modifications with this module alone? Or do we need to call extra in between frame events with another part of the code?
+A
+Short answer: Yes, it can live entirely in this module.
+The external game loop can keep calling physics.update() exactly once per frame, unchanged. All the substepping happens inside update(). Nothing else in your codebase needs to know physics is running multiple internal steps.
+
+There's one decision you need to make, though, and it determines whether you need one tiny change to the caller or zero changes:
+
+The only external question: where does real elapsed time come from?
+Right now update() takes no arguments. Your w.delta isn't a frame-time — it's a game-speed multiplier (your slow-mo / bullet-time). That's a separate concept from "how much wall-clock time passed since last frame." For proper substepping you ideally want both.
+
+You have three choices:
+
+A. Fixed substep count — zero external changes
+Just run N internal steps per update() call, each using w.delta / N as the effective step. Caller stays identical.
+
+✅ Fully self-contained
+✅ Kills tunneling
+❌ Still tied to render frame rate (a 30fps machine runs the sim at half speed) — same as today, just smoother
+B. Caller passes real dt — one-line external change
+Game loop changes from physics.update() → physics.update(elapsedMs). Inside, you run an accumulator and step in fixed chunks until you've "spent" the elapsed time.
+
+✅ True frame-rate independence
+✅ Cleanest architecture
+❌ One line changed in the caller
+C. Module reads performance.now() itself — zero external changes
+update() internally measures time since last call.
+
+✅ Fully self-contained and frame-rate independent
+❌ Couples physics to wall clock → harder to pause, replay, or unit-test
+❌ Slightly "magic" / hidden state
+What the internal restructure looks like (conceptually)
+update(realDt?) {
+  // 1. Per-FRAME stuff (runs once, not per substep)
+  - slow-mo decay of w.delta / w.hook / w.power
+  - accumulate realDt (if using B/C)
+
+  // 2. Substep loop
+  for each substep:
+    - integrate ALL entities
+    - apply bounds to ALL
+    - detect + resolve ALL pairwise collisions
+    - run robot steering / pickup / ball-carrier logic
+
+  // 3. Per-FRAME post (runs once)
+  - _computeNearest()
+}
+Key things that stay once-per-frame (outside the substep loop):
+
+The slow-mo decay (w.delta *= slowDecay, w.power *= powerGrowth) — it's a gameplay/feel effect, not physics
+_computeNearest() — AI only needs it once per frame
+Everything currently in _updateEntity moves into the substep loop, but reorganised into integrate-all → collide-all → game-logic-all passes instead of interleaved per-entity.
+
+Things that do not need to change externally
+slow(), fast(), shoot(), score() — same signatures, called the same way
+AI / input code setting e.targetX/Y — targets just stay constant across substeps, which is correct
+Rendering — it reads world after update() returns, sees final post-substep state
+world shape — no new fields needed except optionally an internal _accumulator if you go with B/C
+My suggestion
+Go with A first (fixed 4–8 substeps, zero caller changes). It's a pure drop-in replacement for this file. If you later find you care about frame-rate independence across devices, upgrading A→B is a one-line change in the caller plus ~5 lines here.
+
+Want me to write the actual refactored module for option A (with the integrate/collide/logic pass separation and the damping/dt fixes from before)?
+
+B
+Short answer: Yes, it can all be done inside this module.
+The caller keeps doing physics.update() once per frame. Nothing outside changes. The substepping happens internally.
+
+But there's one important design decision
+You can't just wrap the whole update() body in a for loop — some things should run per frame, others per substep. If you substep everything, AI robots will steer/accelerate 8× faster and the game feel breaks.
+
+Here's how the work should split:
+
+Runs once per frame (outer)
+slowing decay (delta/hook/power growth)
+AI decisions: target selection, desiredSpeed, steering (e.vx += ...), angle turning
+Auto-shoot check
+_computeNearest()
+Runs N times per substep (inner, with subDelta = delta / N)
+Position integration (e.x += e.vx * subDelta)
+Damping (adjusted: damp^(1/N) so total damping per frame stays the same)
+Ball snap-to-carrier
+Bounds/wall bouncing
+Pairwise collisions
+Ball release check (_updateBall)
+Pickup check
+What the restructured update() looks like conceptually
+update() {
+  applySlowingDecay();           // once
+
+  for each entity:
+    runAIThinking(entity);       // steering, targeting, angle — once
+
+  const N = chooseSubsteps();    // e.g. 4–8, or based on max speed
+  const subDelta = w.delta / N;
+  const subDamp  = Math.pow(C.PHYSICS.damp, 1 / N);
+
+  for (let s = 0; s < N; s++) {
+    for each entity: integrate(entity, subDelta, subDamp);
+    for each entity: snapBallIfCarried(entity);
+    for each entity: applyBounds(entity);
+    resolveAllCollisions();      // separate pass, not inside integrate
+    checkBallRelease();
+    checkPickup();
+  }
+
+  computeNearest();              // once
+}
+Caveats / things to watch
+shoot() is called from inside the loop (AI auto-shoot and fast()). That's fine, but it mutates ball velocity mid-frame — make sure it's called from the per-frame AI pass, not the per-substep pass. Otherwise the ball can get shot multiple times.
+
+score() resets the ball — also should only happen in the substep pass (since bounds check runs there), but only once. A simple guard: after score() runs, skip remaining substeps that frame.
+
+w.delta doubles as "game speed multiplier" (slowed down during aim). That still works — you just divide it by N for the inner loop. The slowing decay stays at frame level.
+
+Adaptive N: for best results, pick N based on the fastest entity's speed vs. smallest radius, so no entity can move more than ~half a radius per substep. Or just hardcode N=8 and move on.
+
+You'll need to choose: does shoot()'s ball.x += ball.vx; ball.y += ball.vy; (the immediate nudge) still make sense? Probably drop it — the substep loop will advance the ball naturally now.
+
+So: no external changes required, but it's a meaningful internal restructure — mainly separating "thinking" from "moving." Want me to write the actual modified file?
+

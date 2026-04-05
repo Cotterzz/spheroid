@@ -27,21 +27,21 @@ const input = {
       if (!gamepad) continue;
       for (const [i, button] of gamepad.buttons.entries()) {
         if (button.pressed) {
-          input.gp = true;
           if(i==0){
             physics.slow();
           } else if (physics.slowing){
             physics.fast();
           }
         }
-        if (!button.pressed&&input.gp) {
+        if (!button.pressed) {
             if(i==0 && physics.slowing){
             physics.fast();
           }
         }
       }
       for (const [i, axis] of gamepad.axes.entries()) {
-
+        //console.log(`${i}: ${axis.toFixed(4)}`);
+        //console.log("value", axis + 1);
         var tlsy = 0;
         var tlsx = 0;
         if(i==0){tlsx=axis}
@@ -54,11 +54,11 @@ const input = {
     }
   },
   setMousePosition:function(e) {
-    input.gp = false;
     const rect = input.elem.getBoundingClientRect();
     input.mx = e.clientX - rect.left;
-    input.my = rect.height - (e.clientY - rect.top) - 1;  
-  
+    input.my = rect.height - (e.clientY - rect.top) - 1;  // bottom is 0 in WebGL
+    //input.mx = input.mx*rr.pixscale;
+    //input.my = input.my*rr.pixscale;
   },
   init:function(){
     this.elem = document.querySelector('.divcanvas');
@@ -89,13 +89,15 @@ const input = {
 
 const shaders = {
   vs:`#version 300 es
-  
+    // an attribute is an input (in) to a vertex shader.
+    // It will receive data from a buffer
     in vec4 a_position;
 
- 
+    // all shaders have a main function
     void main() {
 
-      
+      // gl_Position is a special variable a vertex shader
+      // is responsible for setting
       gl_Position = a_position;
     }
   `,
@@ -239,6 +241,8 @@ vec3 linePoint( in vec3 P, in vec3 A, in vec3 B ){
     return X;
 }
 
+// SD Functions from https://iquilezles.org/articles/distfunctions2d/
+
 float sdBox( in vec2 p, in vec2 b )
 {
     vec2 d = abs(p)-b;
@@ -302,6 +306,10 @@ float sdBezier( in vec2 pos, in vec2 A, in vec2 B, in vec2 C )
     return sqrt( res );
 }
 
+// Copyright (c) 2024 John Cotterell johnmdcotterell@gmail.com
+// You may view and edit this code (with this message intact) only on Shadertoy.
+// Anything else requires my permission.
+
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
     uv = fragCoord/iResolution.y;
@@ -319,8 +327,8 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     vec4 courtyard = vec4( border*bar, border, ar-(border*bar), 1.0-border);
     courtprox = vec4( courtyard.x - uv.x, courtyard.y - uv.y, uv.x - courtyard.z, uv.y - courtyard.w);
     float goalwidth = 0.2;
-    float goaltop = 0.6; 
-    float goalbottom = 0.4;
+    float goaltop = 0.5 + (goalwidth/2.0);  
+    float goalbottom = 0.5 - (goalwidth/2.0);
     float goalprox = max((uv.y-goaltop), (goalbottom-uv.y));
     float wallheightfactor = 1.0;
 
@@ -356,7 +364,10 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
         pos[8] = pos8;
         pos[9] = pos9;
         pos[10] = pos10;
-
+        //for(int i=0;i<numrobs;i++){
+            //pos[i].x = (ar/2.0) + (pos[i].x/10.0)*(ar/2.0);
+            //pos[i].y = 0.5 + (pos[i].y/6.0)*0.5;
+        //}
 
 
     for(int i=1;i<numrobs;i++){
@@ -364,17 +375,21 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
       if(i<activerobs){
         Robs[i].ison = true;
         Robs[i].radius = dradius;
-
+        //angle = float(i) * segment;
+        //vec2 rcentre = centreL;
         if(i>5){
             Robs[i].colourA = pgreen;
             Robs[i].colourB = pblack;
-
+            //angle += mTime;
+            //Robs[i].rotation = angle + rightAng;
+            //rcentre = centreR;
           } else {
                 Robs[i].colourA = pink;
                 Robs[i].colourB = white;
-
+                //angle -= mTime;
+                //Robs[i].rotation = angle - rightAng;
             }
-        
+        //Robs[i].position = vec3( rcentre.x + (cradius * cos(angle)), rcentre.y + (cradius * sin(angle)), 0.0);
         Robs[i].position = vec3( pos[i].xy, 0.0);
         Robs[i].rotation = pos[i].z - rightAng;
         } 
@@ -391,7 +406,12 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     if(tractee==0 &&tracting){
       Robs[0].position.x += sinw/400.0;
       Robs[0].position.y -= sinw/400.0;
-    } 
+        //float balldist = dradius+bradius*3.;
+        //balldist += sinw/200.0;
+        //Robs[0].position = vec3( Robs[hasball].position.x + (balldist * cos(Robs[hasball].rotation)), Robs[hasball].position.y + (balldist * sin(Robs[hasball].rotation)), bradius);
+    } else {
+        //Robs[0].position = vec3(ar/4., 0.2, 0.);
+    }
     Robs[0].radius = bradius;
     Robs[0].ison = true;
     Robs[0].colourA = vec3(1.2);
@@ -409,6 +429,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     lights[2] = light(vec3(0.2,0.2,0.9),vec3(0.0),vec3(0.0),vec3(0.0),vec2(0.0),0.0, 0.0007, false, false);
     
     lights[2].position = Robs[tractee].position;
+    //lights[2].position.z = 0.005;
     lights[2].ison = tracting;
     if(uv.x>=ar/2.0){
         lights[1] =  lights[3]; lights[1].ison = true;
@@ -585,7 +606,31 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
             
         }
         normal = normal/length(normal);
-
+        /*    // ----  Objects casting shadows on other objects
+        for(int i=0;i<numrobs;i++){
+            if(i!=rindex&&Robs[i].ison){
+                for(int j=0;j<numlights;j++){
+                   if(lights[j].casts&&lights[j].ison){
+                     if(distance(Robs[i].position, lights[j].position) < distance(Robs[rindex].position, lights[j].position)){
+                        vec3 tempBall = Robs[i].position;
+                        tempBall.z*=1.2;
+                        float beam = linePointLength(tempBall, lights[j].position, vec3(uv.x, uv.y, height)); 
+                        float cradius = Robs[i].radius*1.2; // cheating and making the ball bigger so shadow seen more easily
+                        float blur = distance(Robs[i].position, vec3(uv.x, uv.y, height))/5.0;
+                        float shadow = 0.0;
+                        if (beam<=(cradius-blur)){shadow = 1.0;} else {
+                            f = smoothstep(cradius-blur, cradius, beam);
+                            shadow = mix(1.0,0.0, f);
+                        }
+                            lights[j].shadow.y = max(shadow, lights[j].shadow.y);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // ----  Lots of GPU for small improvement, Uncomment to use
+        */ 
     }
     
     if(ZoneGround||ZoneWall){
@@ -728,14 +773,14 @@ const rr = {
   hasballLoc:null,
   activeLoc:null,
   transformY: function(y){
-    return y;
+    return (0.5 + (y/6.0)*0.5);
   },
   transformX: function(x){
-    return x;
+    return ((rr.ar/2.0) + (x/10.0)*(rr.ar/2.0));
   },
   render: function(now) {
     rr.requestId = undefined;
-    now *= 0.001; 
+    now *= 0.001;  // convert to seconds
     var elapsedTime = Math.min(now - rr.then, 0.1);
     elapsedTime *= physics.delta;
     rr.time += elapsedTime;
@@ -766,8 +811,8 @@ const rr = {
     rr.gl.uniform1i(rr.playerLoc, AI.human);
     rr.gl.drawArrays(
         rr.gl.TRIANGLES,
-        0,
-        6,
+        0,     // offset
+        6,     // num vertices to process
     );
 
     rr.requestFrame();
@@ -831,11 +876,11 @@ const rr = {
 
   rr.gl.vertexAttribPointer(
       positionAttributeLoc,
-      2,         
-      rr.gl.FLOAT,  
-      false,     
-      0,        
-      0,         
+      2,          // 2 components per iteration
+      rr.gl.FLOAT,   // the data is 32bit floats
+      false,      // don't normalize the data
+      0,          // 0 = move forward size * sizeof(type) each iteration to get the next position
+      0,          // start at the beginning of the buffer
   );
 
 
@@ -845,14 +890,12 @@ const rr = {
 }
 
 const physics = {
-    hook: 0.1,
-    hookmax: 0.1,
-    hookmin: 0.07,
-    amount: 4,
+    hook: 0.9,
+    amount: 11,
     damp: 0.98,
     stopv: 0,
-    cdist: 0.1,
-    maxvel:[0.013, 0.013, 0.013,0.013,0.013, 0.013, 0.013,0.013, 0.013, 0.013, 0.013],
+    cdist: 3,
+    maxvel:[0.13, 0.13, 0.13,0.13,0.13, 0.13, 0.13,0.13, 0.13, 0.13, 0.13],
     agil: 2,
     poss: false,
     possby: 0,
@@ -863,15 +906,15 @@ const physics = {
     xp: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     yp: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     mass: [1, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
-    radii: [0.02, 0.048, 0.048, 0.048,0.048, 0.048,0.048, 0.048, 0.048, 0.048, 0.048],
-    toplim: 0.95,
-    botlim: 0.05,
-    leflim: 0.05,
-    riglim: 0.95,
-    goalTop: 0.6,
-    goalBottom: 0.4,
-    targetx: [0.5, 0.2, 0.2, 0.4, 0.4, 0.2, 0.6, 0.8, 0.8, 1.4, 1.4],
-    targety: [0.5, 0.7, 0.3, 0.8, 0.2, 0.5, 0.5, 0.2, 0.8, 0.3, 0.7],
+    radii: [0.2, 0.7, 0.7, 0.7, 0.7, 0.7,0.7, 0.7, 0.7, 0.7, 0.7],
+    toplim: [5.1, 4.7, 4.7, 4.7, 4.7, 4.7, 4.7, 4.7, 4.7, 4.7, 4.7],
+    botlim: [-5.1, -4.7, -4.7, -4.7, -4.7, -4.7, -4.7, -4.7, -4.7, -4.7, -4.7],
+    leflim: [-9.3, -8.9, -8.9, -8.9, -8.9, -8.9, -8.9, -8.9, -8.9, -8.9, -8.9],
+    riglim: [9.3, 8.9, 8.9, 8.9, 8.9, 8.9, 8.9, 8.9, 8.9, 8.9, 8.9],
+    goalTop: 1.5,
+    goalBottom: -1.5,
+    targetx: [0, -6.5, -6.5, -4, -4, -2, 2, 4, 4, 6.5, 6.5],
+    targety: [0, 2, -2, 3, -3, 0, 0, -3, 3, -2, 2],
     targetxd: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     targetyd: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     targeta: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -887,19 +930,16 @@ const physics = {
     nearestB: 0,
     vinc: 0.1,
     delta: 0.7,
-    deltamax: 0.7,
-    deltamin: 0.1,
     slowing: false,
-    power: 0.02,
-    shooting: false,
+    power: 0.1,
     slow: function(){
       if(physics.possby==AI.human && !physics.slowing){
         physics.slowing = true;
       }
     },
     fast: function(){
-     
-      physics.hook = physics.hookmax;
+      physics.delta = 0.7;
+      physics.hook = 1.0;
       physics.slowing = false;
       if(physics.possby==AI.human){
         physics.shoot(AI.human);
@@ -910,7 +950,6 @@ const physics = {
         var dy = g.o[B].y - g.o[A].y;
         var dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < this.radii[A] + this.radii[B]) {
-           if(A==0||B==0){this.shooting=false}
             var angle = Math.atan2(dy, dx);
             var cosa = Math.cos(angle);
             var sina = Math.sin(angle);
@@ -936,37 +975,31 @@ const physics = {
         }
     },
     shoot: function(i){
-      this.shooting=true;
       console.log(physics.power);
                     this.poss = false;
                     this.possby = 0;
                     this.yv[0] = this.yv[i] + (physics.power) * Math.sin(g.o[i].r - 1.5708);
                     this.xv[0] = this.xv[i] + (physics.power) * Math.cos(g.o[i].r - 1.5708);
-                    physics.power=0.02;
-                    this.delta = 0.05
+                    g.o[0].x += this.xv[0];
+                    g.o[0].y += this.yv[0];
+                    physics.power=0.1;
     },
     score: function(side) {
-        g.o[0].x = rr.ar*0.5;
-        g.o[0].y = 0.5;
+        g.o[0].x = 0;
+        g.o[0].y = 0;
 
         this.xv[0] = 0;
         this.yv[0] = 0;
         this.poss = false;
-        this.shooting =false;
         this.possby = 0;
     },
     animate: function() {
-        const p = physics
-        if(p.slowing){
-          if(p.delta>p.deltamin){p.delta*=0.98;}
-          if(p.hook>p.hookmin){p.hook*=0.98;}
-          if(p.power<0.1){p.power*=1.05;}
-        } else {
-          if(p.delta<p.deltamax){p.delta+=0.05}
-        }
 
-        var rl = rr.ar-this.leflim;
-        var ll = this.leflim;
+        if(physics.slowing){
+          if(physics.delta>0.1){physics.delta*=0.98;}
+          if(physics.hook>0.9){physics.hook*=0.98;}
+          if(physics.power<1){physics.power*=1.02;}
+        }
 
         for (var i = 0; i < this.amount; i++) {
 
@@ -975,54 +1008,51 @@ const physics = {
                     g.o[i].x = (g.o[this.possby].x + 1.3*(this.hook * Math.cos(g.o[this.possby].r - 1.5708)));
                     g.o[i].y = (g.o[this.possby].y + 1.3*(this.hook * Math.sin(g.o[this.possby].r - 1.5708)));
                 }
-             
+                //if(i<2){
                 g.o[i].x += this.xv[i]*this.delta;
                 g.o[i].y += this.yv[i]*this.delta;
-              
+                //}
                 this.xv[i] *= this.damp;
                 this.yv[i] *= this.damp;
 
                 if (i === 0) {
                   if (!(g.o[i].y < this.goalTop && g.o[i].y > this.goalBottom)) {
-                           if (g.o[i].x+this.radii[i] > rl){
-                              g.o[i].x = rl-this.radii[i];
+                           if (g.o[i].x > this.riglim[i]){
+                              g.o[i].x = this.riglim[i];
                               this.xv[i] = -this.xv[i];
-                              this.shooting=false;
                            }
-                           if (g.o[i].x-this.radii[i]< ll){
-                              g.o[i].x = ll+this.radii[i];
+                           if (g.o[i].x < this.leflim[i]){
+                              g.o[i].x = this.leflim[i];
                               this.xv[i] = -this.xv[i];
-                              this.shooting=false;
                            }
                   }
-                  if (g.o[i].x+this.radii[i] > rl+0.1) {
+                  if (g.o[i].x > this.riglim[i]+1) {
                       this.score("A");
                   } 
-                  if (g.o[i].x-this.radii[i] < ll-0.1) {
+                  if (g.o[i].x < this.leflim[i]-1) {
                       this.score("B");
                   } 
                 } else {
-                
-                if (g.o[i].x+this.radii[i] > rl) {
-                  console.log(rl, g.o[i].x+this.radii[i], g.o[i].x, this.radii[i])
-                  g.o[i].x = rl-this.radii[i];
+                if (g.o[i].x > this.riglim[i]) {
+
+                    g.o[i].x = this.riglim[i];
                     this.xv[i] = -this.xv[i];
 
                 }
-                if (g.o[i].x-this.radii[i] < ll) {
-                    g.o[i].x = ll+this.radii[i];
+                if (g.o[i].x < this.leflim[i]) {
+                    g.o[i].x = this.leflim[i];
                     this.xv[i] = -this.xv[i];
                 }
               }
-                if (g.o[i].y+this.radii[i] > this.toplim) {
-                    g.o[i].y = this.toplim-this.radii[i];
+                if (g.o[i].y > this.toplim[i]) {
+                    g.o[i].y = this.toplim[i];
                     this.yv[i] = -this.yv[i];
-                    if(i==0){this.shooting=false;}
+       
                 }
-                if (g.o[i].y-this.radii[i] < this.botlim) {
-                    g.o[i].y = this.botlim+this.radii[i];
+                if (g.o[i].y < this.botlim[i]) {
+                    g.o[i].y = this.botlim[i];
                     this.yv[i] = -this.yv[i];
-                    if(i==0){this.shooting=false;}
+       
                 }
 
                 if ((Math.abs(this.xv[i]) + Math.abs(this.yv[i])) < this.stopv) {
@@ -1040,7 +1070,7 @@ const physics = {
                 if (this.poss) {
                     var xd2 = g.o[0].x - (g.o[this.possby].x + (this.hook * Math.cos(g.o[this.possby].r - 1.5708)));
                     var yd2 = g.o[0].y - (g.o[this.possby].y + (this.hook * Math.sin(g.o[this.possby].r - 1.5708)));
-                    if (Math.sqrt((Math.abs(xd2) * Math.abs(xd2) + (Math.abs(yd2) * Math.abs(yd2)))) > 0.04) {
+                    if (Math.sqrt((Math.abs(xd2) * Math.abs(xd2) + (Math.abs(yd2) * Math.abs(yd2)))) > 0.4) {
                         this.yv[0] = this.yv[this.possby];
                         this.xv[0] = this.xv[this.possby];
                         this.poss = false;
@@ -1061,8 +1091,8 @@ const physics = {
                 g.o[i].r = g.o[i].r % 6.283184;
  
                 this.targetd[i] = Math.sqrt((Math.abs(this.targetxd[i]) * Math.abs(this.targetxd[i])) + (Math.abs(this.targetyd[i]) * Math.abs(this.targetyd[i])));
-                var dtarget  = this.targetd[i] - (this.radii[i]/10);
-                if (dtarget > this.cdist) {
+
+                if (this.targetd[i] > this.cdist) {
                     this.v[i] = this.maxvel[i];
                 } else if (i == this.nearestA && this.possby != i) {
                     this.v[i] = this.maxvel[i];
@@ -1071,10 +1101,10 @@ const physics = {
                 } else if (this.possby == i && i!=AI.human) {
                     this.v[i] = this.maxvel[i];
                 } else {
-                    this.v[i] = this.maxvel[i] * (dtarget / this.cdist);
+                    this.v[i] = this.maxvel[i] * (this.targetd[i] / this.cdist);
                 } 
 
-             
+                //
                 var wx = this.v[i] * Math.cos(this.targeta[i]);
                 var wy = this.v[i] * Math.sin(this.targeta[i]);
                 var netrotation = (g.o[i].r - 1.5708);
@@ -1116,17 +1146,17 @@ const physics = {
 
                 g.o[i].r += this.angleinc[i]*this.delta;
  
-                if (this.possby == i && this.targetd[i] < rr.ar*0.3 && i!=AI.human) {
+                if (this.possby == i && this.targetd[i] < 1 && i!=AI.human) {
                     this.shoot(i);
                 }
 
-                if (!this.poss&&!this.shooting) {
+                if (!this.poss) {
                     var xd = g.o[0].x - (g.o[i].x + (this.hook * Math.cos(g.o[i].r - 1.5708)));
                     var yd = g.o[0].y - (g.o[i].y + (this.hook * Math.sin(g.o[i].r - 1.5708)));
-                    if (Math.sqrt((Math.abs(xd) * Math.abs(xd) + (Math.abs(yd) * Math.abs(yd)))) < 0.01) {
+                    if (Math.sqrt((Math.abs(xd) * Math.abs(xd) + (Math.abs(yd) * Math.abs(yd)))) < 0.3) {
                         this.poss = true;
                         this.possby = i;
-                        
+                        if(i<6 ) {AI.human=i};
                     }
                 }
 
@@ -1148,31 +1178,37 @@ const physics = {
                 this.nearestB = l;
             }
         }
+        //if(physics.possby!=AI.human){
+          //AI.human = this.nearestA;
+        //}
         
+
     }
 };
 
 const g ={
-  o:[{x:0.5, y:0.5},
-  {x:0.4,y:0.5, r: 1.5708},
-  {x:0.3,y:0.7, r: 1.5708},
-  {x:0.3,y:0.3,r: 1.5708},
-  {x:0.1,y:0.7, r: 1.5708},
-  {x:0.1,y:0.3,r: 1.5708},
-  {x:1.2, y:0.5, r:-1.5708},
-  {x:1.4, y:0.3, r:-1.5708},
-  {x:1.4, y:0.5,r:-1.5708},
-  {x:1.6, y:0.7, r:-1.5708},
-  {x:1.6, y:0.3,r:-1.5708}]
+  o:[{x:0, y:0},
+  {x:-2,y:0, r: 1.5708},
+  {x:-4,y:2, r: 1.5708},
+  {x:-4,y:-2,r: 1.5708},
+  {x:-6,y:2, r: 1.5708},
+  {x:-6,y:-2,r: 1.5708},
+  {x:2, y:0, r:-1.5708},
+  {x:4, y:2, r:-1.5708},
+  {x:4, y:-2,r:-1.5708},
+  {x:6, y:2, r:-1.5708},
+  {x:6, y:-2,r:-1.5708}]
 };
 
 var AI = {
-    human: 3,
+    human: 1,
     attacking: false,
     attackx: [0, 0.2, 0.4, 0.6, 0.8, 1.2, 1.5, 1.5, 1.8, 1.8, 1.9],
-    attacky: [0, 0.5, 0.75, 0.25, 0.85, 0.15, 0.65, 0.35, 0.15, 0.85, 0.5],
+    attacky: [0, 1, 1.5, 0.5, 1.7, 0.3, 1.3, 0.7, 0.3, 1.7, 1],
+    neutralx: [0, 0.25, 0.25, 0.7, 0.7, 0.8, 1.2, 1.3, 1.3, 1.75, 1.75],
+    neutraly: [0, 0.5, 1.5, 0.25, 1.75, 1, 1, 1.75, 0.25, 1.5, 0.5],
     defensex: [0, 0.1, 0.2, 0.2, 0.5, 0.5, 0.8, 1.2, 1.4, 1.6, 1.8],
-    defensey: [0, 0.5, 0.85, 0.15, 0.35, 0.65, 0.15, 0.85, 0.25, 0.75, 0.5],
+    defensey: [0, 1, 1.7, 0.3, 0.7, 1.3, 0.3, 1.7, 0.5, 1.5, 1],
     positionx: null,
     positiony: null,
 
@@ -1207,15 +1243,15 @@ var AI = {
         if(input.gp){
           var gpoffset = 0;
           if(physics.possby==1){gpoffset=0}
-            physics.targetx[this.human] = (g.o[this.human].x-gpoffset) + input.lsx*0.2;
-            physics.targety[this.human] = (g.o[this.human].y+gpoffset) - input.lsy*0.2;
+            physics.targetx[this.human] = (g.o[this.human].x-gpoffset) + input.lsx*2;
+            physics.targety[this.human] = (g.o[this.human].y+gpoffset) - input.lsy*2;
           } else {
-            physics.targetx[this.human] = (input.mx/window.innerWidth) * rr.ar;
-            physics.targety[this.human] = input.my/window.innerHeight;
+            physics.targetx[this.human] = ((input.mx/window.innerWidth)*20)-10;
+            physics.targety[this.human] = ((input.my/window.innerHeight)*12)-6;
           }
         
 
-        
+        // nearest red and green droids to ball targets ball
         if(physics.nearestA!=this.human){
         physics.targetx[physics.nearestA] = g.o[0].x;
         physics.targety[physics.nearestA] = g.o[0].y;
@@ -1223,6 +1259,7 @@ var AI = {
         physics.targetx[physics.nearestB] = g.o[0].x;
         physics.targety[physics.nearestB] = g.o[0].y;
 
+        // if ball is in possession, give possessing droid new target
         if (physics.poss&&physics.possby!=this.human) {
 
             if (physics.possby > 5) {
@@ -1233,17 +1270,34 @@ var AI = {
                 physics.targety[physics.possby] = 0;
             }
         }
+        // if possessing droid reaches target, target goal
 
+        // if pointing towards goal, fire ball
+
+        // give human droid control target
+
+        //physics.targetx[this.human] = controls.mx;
+        //physics.targety[this.human] = controls.my;
     },
 
     getx: function(num) {
         var ballx = g.o[0].x;
-        return (ballx * num)+(rr.ar/2.0);
+        ballx += 9.6;
+        if (num < 1) {
+            return ((ballx * num) - 9.6);
+        } else {
+            return ((ballx + ((19.2 - ballx) * (num - 1))) - 9.6);
+        }
     },
 
     gety: function(num) {
         var bally = g.o[0].y;
-        return (bally * num)+0.5;
+        bally += 5.4;
+        if (num < 1) {
+            return ((bally * num) - 5.4);
+        } else {
+            return ((bally + ((10.8 - bally) * (num - 1))) - 5.4);
+        }
     }
 };
 
@@ -1252,6 +1306,9 @@ function main() {
   rr.init();
 }
 
+  // The remaining code is from webgl2fundamentals.org
+  // The full version and copyright notice is here:
+  // https://webgl2fundamentals.org/webgl/resources/webgl-utils.js
 
   function error(msg) {console.log(msg)}
 

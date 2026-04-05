@@ -1,0 +1,240 @@
+Refactoring Suggestions for Your Game
+Current Issues
+Monolithic file - Everything in one 900+ line file
+Tangled dependencies - Objects directly reference each other (input → physics, rr, etc.)
+Repetitive code - pos0Loc through pos10Loc handled individually
+Magic numbers - 1.5708, 6.283184, 11 scattered throughout
+Unclear naming - rr, g, cryptic variable names
+Mixed responsibilities - rr does rendering AND coordinate transforms
+No clear game state - State scattered across physics, g, AI
+Suggested Structure
+/project
+├── index.html
+├── styles/main.css
+├── shaders/
+│   ├── vertex.glsl
+│   └── fragment.glsl
+├── js/
+│   ├── main.js                 # Entry point, bootstrapping
+│   ├── config/
+│   │   └── constants.js        # NUM_ROBOTS, HALF_PI, limits, colors
+│   ├── core/
+│   │   ├── Game.js             # Game loop, state machine
+│   │   ├── Renderer.js         # WebGL setup, uniform management
+│   │   └── InputManager.js     # Mouse, touch, gamepad unified
+│   ├── entities/
+│   │   ├── Entity.js           # Base: {x, y, r, vx, vy, radius}
+│   │   ├── Ball.js
+│   │   └── Robot.js
+│   ├── systems/
+│   │   ├── PhysicsSystem.js    # Collision, movement, boundaries
+│   │   └── AISystem.js         # Target selection, formations
+│   └── utils/
+│       ├── math.js             # Vector ops, angle normalization
+│       └── webgl-utils.js      # Shader compilation helpers
+Key Architectural Changes
+1. Entity Array Instead of Parallel Arrays
+Current:  physics.xv[i], physics.yv[i], physics.mass[i], g.o[i].x...
+Better:   entities[i] = { x, y, vx, vy, mass, radius, rotation, team }
+2. Uniform Buffer/Array for Positions
+Instead of 11 individual uniform locations, pass a single uniform array or use a Uniform Buffer Object. Your shader can then use pos[i] instead of pos0, pos1, pos2...
+
+3. Clear Game State Object
+gameState = {
+  phase: 'playing' | 'scored' | 'paused',
+  possession: { hasball: boolean, holder: number },
+  score: { teamA: 0, teamB: 0 },
+  entities: [...],
+  playerControlled: 1
+}
+4. Event/Message System
+Decouple with events:
+
+onPossessionChange(robotId)
+onGoalScored(team)
+onCollision(entityA, entityB)
+5. Separate Update from Render Timing
+Game.update(deltaTime)    // Physics, AI - fixed timestep
+Game.render()             // Draw current state - vsync
+6. Configuration Object for Shader
+const shaderConfig = {
+  resolution, mouse, time,
+  positions: entities.map(e => [transform(e.x), transform(e.y), e.r]),
+  activeCount, possession, player
+}
+renderer.setUniforms(shaderConfig)
+Quick Wins (Minimal Refactoring)
+Extract constants to top of file with clear names
+Replace parallel arrays with array of entity objects
+Loop over positions instead of 11 separate uniform3f calls
+Move shaders to <script type="x-shader"> tags or external files
+Rename rr→renderer, g→gameEntities, clarify AI
+Create helper functions for repeated patterns (angle normalization, distance checks)
+Module Responsibility Summary
+Module	Single Responsibility
+Game	Owns game loop, state transitions, coordinates systems
+Renderer	WebGL context, shader programs, drawing
+InputManager	Normalizes mouse/touch/gamepad into unified commands
+PhysicsSystem	Moves entities, detects collisions, enforces boundaries
+AISystem	Chooses targets, formations based on game state
+Entity/Robot/Ball	Data + entity-specific behavior
+Constants	All magic numbers with descriptive names
+This structure will make adding features (new game modes, more robots, different courts) much easier and debugging far more manageable.
+
+B
+Refactoring Suggestions for Your Renderer Game
+Your code has grown organically and hit the "big ball of mud" phase. Here's a structural approach to tame it.
+
+1. Split into Files / Modules
+Right now everything is in one HTML file. Move to ES modules:
+
+index.html
+src/
+  main.js
+  config.js          # constants, tunables
+  input/
+    Input.js
+    KeyboardMouse.js
+    Gamepad.js
+  render/
+    Renderer.js
+    Shader.js        # compile/link helpers
+    shaders/
+      game.vert.js
+      game.frag.js
+  game/
+    GameState.js     # the `g` object, positions, etc.
+    Physics.js
+    AI.js
+    Entity.js        # replaces implicit rob/ball objects
+  util/
+    math.js
+Even without a bundler you can use <script type="module">.
+
+2. Replace Parallel Arrays with Entities
+The biggest smell is physics holding 15+ parallel arrays indexed by entity:
+
+js
+xv[], yv[], xp[], yp[], mass[], radii[], targetx[], targety[], ...
+Collapse these into one array of entity objects:
+
+js
+class Entity {
+  constructor({x, y, r, mass, radius, team, maxVel, ...}) { ... }
+  // pos, vel, target, angle, limits, etc.
+}
+Benefits:
+
+Adding/removing a robot becomes trivial
+No more this.maxvel[i], g.o[i].x, physics.xv[i] desync
+Can iterate: entities.filter(e => e.team === 'red')
+The duplicate state between g.o[i] and physics.xp[i] disappears
+3. Separate "World State" from "Systems"
+Currently physics holds both state (velocities, positions) AND behavior (animate, collide). Split:
+
+World/GameState: just data (entities, score, ball, possession)
+PhysicsSystem: pure functions that read/mutate world
+AISystem: reads world, writes target goals
+InputSystem: reads HW, writes intent to world (e.g. player.inputVector)
+RenderSystem: reads world, sends to GPU
+This is basically ECS-lite and each system becomes independently testable.
+
+4. Fix Uniform Handling (pos0..pos10)
+The 11 hand-typed uniforms + 11 hand-typed getUniformLocation + 11 hand-typed uniform3f calls are painful and hard-coded to MAX_ROBS=11.
+
+Two options:
+
+A. Uniform arrays — declare uniform vec3 robs[11]; in GLSL, then:
+
+js
+const data = new Float32Array(11 * 3);
+// fill from entities
+gl.uniform3fv(robsLoc, data);
+B. Data texture — upload entity state as a texture. Scales to any number of robs and shader can loop over them dynamically.
+
+Also auto-collect uniform locations:
+
+js
+function getUniforms(gl, program, names) {
+  return Object.fromEntries(names.map(n => [n, gl.getUniformLocation(program, n)]));
+}
+5. Constants Module
+Magic numbers litter the code (1.5708, 6.24318, 0.13, dradius = 0.048…). Put them in config.js:
+
+js
+export const HALF_PI = Math.PI / 2;
+export const TWO_PI = Math.PI * 2;
+export const BALL_RADIUS = 0.02;
+export const ROB_RADIUS = 0.048;
+export const FIELD = { w: 9.3, h: 5.1, goal: 1.5 };
+export const MAX_VEL = 0.13;
+6. Clean Up the Shader
+The fragment shader is ~400 lines and mixes:
+
+SDF library functions (sdBox, sdBezier…)
+Game layout (court, goals, lines)
+Entity rendering
+Lighting/shadows
+Post-processing (contrast, gamma)
+Split into sections with clear comments or, better, use a small #include-style preprocessor at JS build time:
+
+js
+const frag = [COMMON, SDF_LIB, LIGHTING, ENTITIES, MAIN].join('\n');
+Also: lots of global mutable state (pixel, courtprox, uv, ar, f, border, bar, outputMode…). Pass these as function args — it makes the shader much easier to follow and reorganize.
+
+7. Centralize the Coordinate Transform
+Both JS (rr.transformX/Y) and shader (the commented-out (ar/2.0) + (pos[i].x/10.0)*(ar/2.0)) know the mapping from "world" to "screen". Pick one:
+
+Preferred: send world coords + viewport info as uniforms, transform in shader
+Then JS never has to know ar for positioning
+8. Event/State Machine for Game Flow
+physics.slow/fast/shoot/score are scattered. Consider a tiny FSM:
+
+STATE: playing → aiming → shooting → scored → resetting → playing
+Each state has enter/update/exit. Clears up who can call shoot, when delta is slowed, etc.
+
+9. Rename for Clarity
+rr → Renderer
+g.o → world.entities
+physics.poss/possby → world.ballCarrier (a reference or index, not two vars)
+AI.human → world.playerIndex
+xv/yv → vel.x / vel.y
+10. Decouple Input from Renderer
+input.init reaches into rr.requestFrame/cancelFrame and physics.slow/fast. Fire events instead:
+
+js
+input.on('actionDown', () => game.onActionDown());
+input.on('move', pos => game.onAim(pos));
+Then the input module has zero knowledge of physics or rendering.
+
+11. Fix the rr.gl vs gl Inconsistency
+In loadShader / createProgram you mix gl.xxx and rr.gl.xxx. It works because they're the same, but it's a bug waiting to happen. Always use the local gl parameter.
+
+Suggested Target Structure Sketch
+js
+// main.js
+const world    = new World(config);
+const renderer = new Renderer(canvas, shaders);
+const input    = new Input(canvas);
+const physics  = new PhysicsSystem(world);
+const ai       = new AISystem(world);
+const game     = new Game(world, input);
+
+function frame(t) {
+  input.poll();
+  game.update(t);        // state machine, shoot/score
+  ai.update(t);
+  physics.update(t);
+  renderer.draw(world, t);
+  requestAnimationFrame(frame);
+}
+Each box has ~one responsibility and you can refactor/test them independently.
+
+Order I'd tackle it in:
+
+Pull the shader into its own file/string module (easy win).
+Introduce Entity and collapse the parallel arrays in physics.
+Extract config.js constants.
+Convert uniforms to an array/data-texture.
+Split systems (physics/ai/input/render) into modules.
+Add a simple game-state FSM.

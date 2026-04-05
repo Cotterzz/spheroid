@@ -1,0 +1,311 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="210mm"
+   height="297mm"
+   viewBox="0 0 210 297"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.3.2 (091e20e, 2023-11-25, custom)"
+   sodipodi:docname="drawing.svg"
+   inkscape:export-filename="drawing.png"
+   inkscape:export-xdpi="96"
+   inkscape:export-ydpi="96"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="1.0242632"
+     inkscape:cx="233.33846"
+     inkscape:cy="452.5204"
+     inkscape:window-width="1920"
+     inkscape:window-height="1009"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1"
+     inkscape:export-bgcolor="#ffffffff" />
+  <defs
+     id="defs1">
+    <linearGradient
+       id="linearGradient31"
+       inkscape:collect="always">
+      <stop
+         style="stop-color:#ffffff;stop-opacity:0;"
+         offset="0.01648351"
+         id="stop31" />
+      <stop
+         style="stop-color:#ffffff;stop-opacity:1;"
+         offset="0.56318682"
+         id="stop32" />
+    </linearGradient>
+    <linearGradient
+       id="linearGradient10"
+       inkscape:collect="always">
+      <stop
+         style="stop-color:#000000;stop-opacity:1;"
+         offset="0"
+         id="stop10" />
+      <stop
+         style="stop-color:#000000;stop-opacity:0;"
+         offset="1"
+         id="stop11" />
+    </linearGradient>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient10"
+       id="linearGradient11"
+       x1="172.55492"
+       y1="63.222783"
+       x2="176.17133"
+       y2="67.484993"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(0.7817276,0,0,0.7777849,-299.09374,-110.07645)" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient10"
+       id="linearGradient13"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(0.74859453,0,0,0.2451224,-291.16364,-82.82793)"
+       x1="172.55492"
+       y1="63.222783"
+       x2="176.17133"
+       y2="67.484993" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient10"
+       id="linearGradient14"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(0.7817276,0,0,0.7777849,-69.170594,38.911337)"
+       x1="172.55492"
+       y1="63.222783"
+       x2="176.17133"
+       y2="67.484993" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient10"
+       id="linearGradient16"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(0.59332333,0,0,0.24512226,-34.70514,65.816065)"
+       x1="172.55492"
+       y1="63.222783"
+       x2="176.17133"
+       y2="67.484993" />
+    <radialGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient31"
+       id="radialGradient32"
+       cx="120.11362"
+       cy="29.815891"
+       fx="120.11362"
+       fy="29.815891"
+       r="7.9000587"
+       gradientTransform="matrix(0.75045949,0,-1.8666781e-8,1.2069788,13.135169,-80.86895)"
+       gradientUnits="userSpaceOnUse" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient10"
+       id="linearGradient32"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(0.78172758,0,0,0.59193685,9.2508413,42.816382)"
+       x1="172.55492"
+       y1="63.222783"
+       x2="176.17133"
+       y2="67.484993" />
+  </defs>
+  <g
+     inkscape:groupmode="layer"
+     id="layer2"
+     inkscape:label="Layer 2"
+     transform="matrix(2.19649,0,0,2.2551329,-104.80073,-6.8955672)"
+     sodipodi:insensitive="true">
+    <ellipse
+       style="fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.641872;stroke-dasharray:none;stroke-opacity:1"
+       id="path27"
+       cx="108.42823"
+       cy="35.962914"
+       rx="6.7941403"
+       ry="6.6847649" />
+    <ellipse
+       style="fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.431826;stroke-dasharray:none;stroke-opacity:1"
+       id="path27-1"
+       cx="108.54879"
+       cy="35.781254"
+       rx="4.5708385"
+       ry="4.4972553" />
+    <ellipse
+       style="fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.881913;stroke-dasharray:none;stroke-opacity:1"
+       id="path27-1-0"
+       cx="108.46549"
+       cy="36.083965"
+       rx="9.3349571"
+       ry="9.184679" />
+    <ellipse
+       style="fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.525992;stroke-dasharray:none;stroke-opacity:1"
+       id="path27-8"
+       cx="108.46257"
+       cy="35.888206"
+       rx="5.5675592"
+       ry="5.4779291" />
+    <ellipse
+       style="fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.337115;stroke-dasharray:none;stroke-opacity:1"
+       id="path27-1-2"
+       cx="108.5111"
+       cy="35.789684"
+       rx="3.5683341"
+       ry="3.5108898" />
+    <ellipse
+       style="fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:0.751467;stroke-dasharray:none;stroke-opacity:1"
+       id="path27-1-0-1"
+       cx="108.43605"
+       cy="36.037441"
+       rx="7.9542208"
+       ry="7.8261685" />
+    <rect
+       style="fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.265017;stroke-dasharray:none;stroke-opacity:1"
+       id="rect30"
+       width="15.584249"
+       height="25.130531"
+       x="99.251495"
+       y="-12.355003"
+       transform="matrix(0.9464892,0.32273549,-0.33824634,0.9410576,0,0)" />
+    <rect
+       style="fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.275113;stroke-dasharray:none;stroke-opacity:1"
+       id="rect30-3"
+       width="22.824116"
+       height="18.491447"
+       x="68.145653"
+       y="66.806664"
+       transform="matrix(0.9587194,-0.28435386,0.5233334,0.85212801,0,0)" />
+    <ellipse
+       style="fill:url(#radialGradient32);fill-rule:evenodd;stroke:none;stroke-width:0.114223;stroke-dasharray:none"
+       id="path30"
+       cx="103.2756"
+       cy="-44.881805"
+       rx="5.9286742"
+       ry="9.5352039"
+       transform="matrix(0.76409823,0.64509991,-0.69225644,0.72165159,0,0)" />
+  </g>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <text
+       style="font-weight:300;font-size:25.4px;font-family:Comfortaa;-inkscape-font-specification:'Comfortaa Light';stroke-width:0.264583"
+       x="47.125462"
+       y="81.287674"
+       id="text9">S</text>
+    <text
+       style="font-weight:300;font-size:25.4px;font-family:Comfortaa;-inkscape-font-specification:'Comfortaa Light';stroke-width:0.264583"
+       x="63.48304"
+       y="81.287674"
+       id="text8">p</text>
+    <text
+       style="font-weight:300;font-size:25.4px;font-family:Comfortaa;-inkscape-font-specification:'Comfortaa Light';stroke-width:0.264583"
+       x="81.491631"
+       y="81.287674"
+       id="text7">h</text>
+    <text
+       style="font-weight:300;font-size:25.4px;font-family:Comfortaa;-inkscape-font-specification:'Comfortaa Light';stroke-width:0.264583"
+       x="98.585838"
+       y="81.287674"
+       id="text6">e</text>
+    <text
+       style="font-weight:300;font-size:25.4px;font-family:Comfortaa;-inkscape-font-specification:'Comfortaa Light';stroke-width:0.264583"
+       x="114.05442"
+       y="81.287674"
+       id="text5">r</text>
+    <text
+       style="font-weight:300;font-size:25.4px;font-family:Comfortaa;-inkscape-font-specification:'Comfortaa Light';stroke-width:0.264583"
+       x="124.16359"
+       y="81.287674"
+       id="text4">o</text>
+    <path
+       style="font-weight:300;font-size:25.4px;font-family:Comfortaa;-inkscape-font-specification:'Comfortaa Light';stroke-width:0.604548"
+       d="m 145.08595,65.970725 q -1.1027,0 -1.91521,-0.754476 -0.75448,-0.812514 -0.75448,-1.973247 0,-1.334844 0.81251,-1.973247 0.87055,-0.69644 1.91521,-0.69644 0.98663,0 1.79914,0.69644 0.87055,0.638403 0.87055,1.973247 0,1.160733 -0.81251,1.973247 -0.75448,0.754476 -1.91521,0.754476 z"
+       id="path10" />
+    <path
+       style="font-weight:300;font-size:25.4px;font-family:Comfortaa;-inkscape-font-specification:'Comfortaa Light';stroke-width:0.230818"
+       d="m 144.96622,80.084482 q -0.3302,0 -0.5588,-0.154646 -0.2032,-0.173977 -0.2032,-0.425277 v -9.414093 q 0,-0.270631 0.2032,-0.425278 0.2286,-0.154646 0.5588,-0.154646 0.3556,0 0.5588,0.154646 0.2032,0.154647 0.2032,0.425278 v 9.414093 q 0,0.2513 -0.2032,0.425277 -0.2032,0.154646 -0.5588,0.154646 z"
+       id="text10" />
+    <text
+       style="font-weight:300;font-size:25.4px;font-family:Comfortaa;-inkscape-font-specification:'Comfortaa Light';stroke-width:0.264583"
+       x="148.52223"
+       y="81.287674"
+       id="text2">d</text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:300;font-stretch:normal;font-size:25.4px;font-family:Comfortaa;-inkscape-font-specification:'Comfortaa Light';fill:#000000;stroke-width:0.264583"
+       x="46.701237"
+       y="165.23711"
+       id="text1-8"><tspan
+         sodipodi:role="line"
+         id="tspan1-1"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:25.4px;font-family:Comfortaa;-inkscape-font-specification:Comfortaa;stroke-width:0.264583"
+         x="46.701237"
+         y="165.23711">Spheroid</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:25.4px;font-family:Comfortaa;-inkscape-font-specification:'Comfortaa Bold';fill:#000000;stroke-width:0.264583"
+       x="46.764355"
+       y="207.4724"
+       id="text1-5"><tspan
+         sodipodi:role="line"
+         id="tspan1-6"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:25.4px;font-family:Comfortaa;-inkscape-font-specification:'Comfortaa Bold';stroke-width:0.264583"
+         x="46.764355"
+         y="207.4724">Spheroid</tspan></text>
+    <rect
+       style="fill:url(#linearGradient11);stroke-width:0.20631"
+       id="rect10"
+       width="1.5144943"
+       height="15.369928"
+       x="-164.20279"
+       y="-68.587669"
+       transform="matrix(-0.99999995,3.2350268e-4,-5.955974e-4,-0.99999982,0,0)" />
+    <rect
+       style="fill:url(#linearGradient13);stroke-width:0.113339"
+       id="rect10-84"
+       width="1.4503032"
+       height="4.8439021"
+       x="-161.98996"
+       y="-69.752548"
+       transform="matrix(-0.99999999,1.0646567e-4,-0.00180976,-0.99999836,0,0)" />
+    <rect
+       style="fill:url(#linearGradient14);stroke-width:0.20631"
+       id="rect10-6"
+       width="1.5144943"
+       height="15.369928"
+       x="65.720367"
+       y="80.400108"
+       transform="matrix(0.99999995,-3.2350268e-4,5.955974e-4,0.99999982,0,0)" />
+    <rect
+       style="fill:url(#linearGradient32);stroke-width:0.179982"
+       id="rect10-6-1"
+       width="1.5144943"
+       height="11.697356"
+       x="144.14178"
+       y="74.391602"
+       transform="matrix(0.99999997,-2.4620321e-4,7.8259474e-4,0.99999969,0,0)" />
+    <rect
+       style="fill:url(#linearGradient16);stroke-width:0.100902"
+       id="rect10-84-7"
+       width="1.1494858"
+       height="4.8438988"
+       x="67.675743"
+       y="78.891434"
+       transform="matrix(0.99999999,-1.3432745e-4,0.00143439,0.99999897,0,0)" />
+  </g>
+</svg>
