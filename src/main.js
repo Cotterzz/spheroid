@@ -6,6 +6,10 @@ import { Renderer }   from './render/Renderer.js';
 
 const canvas    = document.querySelector('#canvas');
 const container = document.querySelector('.divcanvas');
+const scoreEls  = {
+  red:   document.querySelector('#score-red'),
+  green: document.querySelector('#score-green'),
+};
 
 const world    = createWorld();
 const physics  = new Physics(world);
@@ -41,6 +45,7 @@ function loop(now) {
     accumulator -= FIXED_DT;
   }
 
+  updateScoreboard();
   renderer.draw(world, time);
 
   rafId = requestAnimationFrame(loop);
@@ -58,6 +63,18 @@ function stopLoop() {
   if (rafId != null) {
     cancelAnimationFrame(rafId);
     rafId = null;
+  }
+}
+
+let prevRed = 0, prevGreen = 0;
+function updateScoreboard() {
+  if (world.scoreRed !== prevRed) {
+    prevRed = world.scoreRed;
+    scoreEls.red.textContent = prevRed;
+  }
+  if (world.scoreGreen !== prevGreen) {
+    prevGreen = world.scoreGreen;
+    scoreEls.green.textContent = prevGreen;
   }
 }
 

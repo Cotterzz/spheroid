@@ -41,6 +41,8 @@ export function createWorld() {
     nearestRed: 1,
     nearestGreen: 6,
     attacking: false,
+    scoreRed: 0,
+    scoreGreen: 0,
     // Tuning state (manipulated by slow/fast charge-shot system)
     hook:  C.PHYSICS.defaultHook,
     delta: C.PHYSICS.defaultDelta,

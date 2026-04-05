@@ -42,8 +42,10 @@ export class Physics {
     this._shotCooldown = SUBSTEPS * 2;
   }
 
-  score(_side) {
+  score(side) {
     const w = this.world;
+    if (side === 'A') w.scoreRed++;
+    else              w.scoreGreen++;
     w.ball.x = 0; w.ball.y = 0;
     w.ball.vx = 0; w.ball.vy = 0;
     w.ballCarrier = null;

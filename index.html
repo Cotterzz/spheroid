@@ -5,11 +5,36 @@
     <title>Index</title>
     <style>
       body { background-color: #000; overflow: hidden; margin: 0; padding: 0; }
+      .divcanvas { position: relative; }
+      #scoreboard {
+        position: fixed;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        font: bold 22px/1 monospace;
+        color: #fff;
+        text-shadow: 0 1px 4px rgba(0,0,0,.7);
+        pointer-events: none;
+        user-select: none;
+        z-index: 10;
+        opacity: 0.8;
+      }
+      #score-red   { color: #f88; }
+      #score-green { color: #9d9; }
+      #score-sep   { color: #aaa; font-size: 16px; }
     </style>
   </head>
   <body>
     <div class="divcanvas">
       <canvas id="canvas"></canvas>
+      <div id="scoreboard">
+        <span id="score-red">0</span>
+        <span id="score-sep">:</span>
+        <span id="score-green">0</span>
+      </div>
     </div>
     <script type="module" src="./src/main.js"></script>
   </body>
