@@ -17,22 +17,30 @@ input.on('actionDown',   () => physics.slow());
 input.on('actionUp',     () => physics.fast());
 input.on('pointerEnter', () => startLoop());
 input.on('pointerLeave', () => stopLoop());
+window.addEventListener('resize', () => renderer.resize());
+
+const FIXED_DT = 1 / 60;
 
 let rafId = null;
 let then  = 0;
 let time  = 0;
+let accumulator = 0;
 
 function loop(now) {
   rafId = null;
   now *= 0.001;
-  const dt = Math.min(now - then, 0.1);
+  const frameTime = Math.min(now - then, 0.1);
   then = now;
-  time += dt * world.delta;
+  accumulator += frameTime;
 
-  input.update();
-  ai.update();
-  physics.update();
-  renderer.resize();
+  while (accumulator >= FIXED_DT) {
+    input.update();
+    ai.update();
+    physics.update();
+    time += FIXED_DT * world.delta;
+    accumulator -= FIXED_DT;
+  }
+
   renderer.draw(world, time);
 
   rafId = requestAnimationFrame(loop);
@@ -41,6 +49,7 @@ function loop(now) {
 function startLoop() {
   if (rafId == null) {
     then = performance.now() * 0.001;
+    accumulator = 0;
     rafId = requestAnimationFrame(loop);
   }
 }

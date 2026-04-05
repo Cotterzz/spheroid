@@ -23,7 +23,7 @@ export const WORLD = {
 export const PHYSICS = {
   damp: 0.98,
   maxVel: 0.13,
-  stopV: 0,
+  stopV: 0.0001,
   agility: 2,
   closeDist: 3,
   defaultDelta: 0.7,

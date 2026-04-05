@@ -1,3 +1,5 @@
+import { WORLD } from '../config.js';
+
 /**
  * Fires: 'pointerEnter', 'pointerLeave', 'actionDown', 'actionUp'
  * Exposes: pointerX, pointerY (canvas-space px), stickX, stickY, hasGamepad
@@ -93,9 +95,11 @@ export class Input {
       const h = world.entities[world.playerIndex];
       return { x: h.x + this.stickX * 2, y: h.y - this.stickY * 2 };
     }
+    const W = WORLD.halfWidth  * 2;
+    const H = WORLD.halfHeight * 2;
     return {
-      x: (this.pointerX / window.innerWidth)  * 20 - 10,
-      y: (this.pointerY / window.innerHeight) * 12 - 6,
+      x: (this.pointerX / window.innerWidth)  * W - WORLD.halfWidth,
+      y: (this.pointerY / window.innerHeight) * H - WORLD.halfHeight,
     };
   }
 }
