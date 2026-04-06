@@ -1,0 +1,179 @@
+Honest Assessment
+Your approach is fundamentally sound. Analytical SDF rendering for a top-down orthographic game is often better than raymarching — you get exact shapes, perfect anti-aliasing, and no step artifacts. Don't switch to raymarching just because it's trendy.
+
+That said, there are real wins available:
+
+🔴 The Big One: Per-Pixel Setup
+You're building the entire Robs[] and lights[] arrays for every single pixel:
+
+glsl
+for(int i=1;i<numrobs;i++){
+    Robs[i].ison = false;
+    if(i<activerobs){
+        Robs[i].radius = dradius;
+        if(i>5){ Robs[i].colourA = pgreen; ... }
+        Robs[i].position = vec3(entities[i].xy, 0.0);
+        Robs[i].rotation = entities[i].z - rightAng;
+    }
+}
+At 1080p that's ~2 million times per frame. Move this to the CPU and pass as a UBO:
+
+glsl
+layout(std140) uniform RobData {
+    vec4 posRot[11];      // xy=pos, z=rot, w=radius
+    vec4 colourA[11];     // xyz=color, w=ison
+    vec4 colourB[11];
+};
+Same for lights. This alone could be a 20–40% win.
+
+🟡 Shadow Loop is O(robs × lights × pixels)
+glsl
+for(int i=0;i<numrobs;i++){
+    for(int j=0;j<numlights;j++){
+        float beam = linePointLength(...);  // 11 × 4 = 44 per pixel
+linePointLength has a branch, a division, a sqrt. Consider:
+
+Only shadow from the nearest robot (you already track dist/rindex)
+Or precompute a cheap shadow term and skip distant robots with a bounding check
+🟡 Global Mutable State
+glsl
+float pixel = 0.0;
+vec4 courtprox = vec4(0.0);
+vec2 uv = vec2(0.0);
+float f = 0.0;           // <-- reused everywhere, very fragile
+f in particular is reused as a scratch variable across ~10 unrelated blocks. One refactor away from a subtle bug. Pass as params or declare locally — the compiler will optimize identically.
+
+🟢 Smaller Wins
+Branchless patterns — many of your ifs are just selects:
+
+glsl
+// Before
+if(i>5){ Robs[i].colourA = pgreen; } else { Robs[i].colourA = pink; }
+
+// After
+Robs[i].colourA = mix(pink, pgreen, step(5.5, float(i)));
+Court lines — getGroundColour() has 4 circles + 4 edges all branchy. Could be a single min() of SDFs with one smoothstep.
+
+Early reject — pixels deep inside a wall don't need the full robot loop.
+
+What I'd Actually Do
+UBO for robots + lights ← biggest win, least risk
+Kill the globals ← maintainability, zero perf cost
+Profile (Chrome DevTools GPU timing or RenderDoc) before touching the shadow loop — it might already be fine
+Want me to sketch out the UBO refactor specifically?
+
+B
+Short answer
+Your approach — a single fullscreen analytical "2.5D" shader — is actually a good fit for this kind of top‑down game. Ray‑marching wouldn't buy you much here; it would mostly make it slower. What you'd benefit from is restructuring, not changing paradigm.
+
+Below is what I'd keep, what I'd change, and a couple of alternative architectures if you ever outgrow this one.
+
+1. What you're actually doing (and why it's fine)
+You've essentially built a tiny deferred‑ish 2.5D renderer:
+
+For each pixel you compute a height and a normal analytically (ground, walls, spherical robots with a carved "visor").
+Then you do standard Lambert + Phong lighting with soft shadows from point lights.
+Plus some screen‑space effects (tractor beam bezier, AO‑ish robambient).
+That's a perfectly legitimate technique. Shadertoy demos that look far fancier than this use exactly the same idea. Ray‑marching is only worth it when your shapes can't be solved in closed form — yours all can (spheres, planes, triangles, beziers).
+
+2. The real problems in this shader
+a) You rebuild all game state per pixel
+glsl
+Rob Robs[numrobs];
+for(int i=1;i<numrobs;i++){ ... Robs[i].position = vec3(entities[i].xy,0); ... }
+Every fragment re‑derives colours, radii, rotation−π/2, ison, light structs, etc. That's thousands of wasted ALU ops per pixel. All of that is uniform data — compute it once on the CPU (or in the vertex shader) and upload it.
+
+Fix: Pack robots into a UBO/uniform array already in final form:
+
+glsl
+// xy = pos, z = rotation (pre-offset), w = radius
+uniform vec4 uRob[numrobs];
+uniform vec4 uRobColA[numrobs]; // or encode team in .w and pick in-shader
+Same for lights — build the light structs CPU‑side.
+
+b) O(robots × lights) shadow loop per pixel
+glsl
+for(int i=0;i<numrobs;i++)
+  for(int j=0;j<numlights;j++)
+    linePointLength(...)
+11 × 4 = 44 line‑point distances per pixel just for shadows, on top of another 11 distances for the hit test. At 1080p that's ~100M distance()/sqrt() calls per frame. It runs because GPUs are monsters, but it's the hot spot.
+
+Options:
+
+Since it's orthographic top‑down, shadows from the overhead light are just offset discs. You can replace the 3D line‑point test with a 2D distance to a projected ellipse/circle — much cheaper.
+Or precompute each robot's shadow ellipse parameters on CPU per light.
+Or drop to 2 shadow‑casting lights (you effectively only use 2 anyway — lights[1]/lights[3] are mutually exclusive, lights[2] has casts=false).
+c) Mutable globals (uv, pixel, courtprox, f, …)
+These make the shader hard to reason about and hurt the compiler's ability to keep things in registers. Pass them as function args or compute locally. f as a global scratch float is especially spooky.
+
+d) Repeated work
+distance(uv, Robs[i].position.xy) is computed twice in the hit loop.
+sin/cos(rotation) recomputed many times in the visor block — compute once as vec2 dir = vec2(cos(r), sin(r));.
+normal = normal/length(normal) → normalize(normal).
+The stripe/visor code has a lot of dead variables (SpFl/SpFr/SpBl/SpBr are built then only partly used).
+e) Branch soup in getGroundColour and the wall classifier
+These can be rewritten as SDFs and min()/smoothstep() compositions which are both cleaner and give you free antialiasing everywhere, instead of the ad‑hoc pixel fudge you sprinkle around.
+
+glsl
+float sdCourtLines(vec2 p){
+    float d = 1e9;
+    d = min(d, abs(sdBox(p-centre, courtHalfSize)));           // outer rect
+    d = min(d, abs(length(p-centre) - circleR));               // centre circle
+    d = min(d, abs(p.x - centre.x));                           // half line
+    d = min(d, abs(length(p-goalL) - circleR));
+    d = min(d, abs(length(p-goalR) - circleR));
+    return d - lineHalfWidth;
+}
+vec3 ground = mix(white, pgrey, smoothstep(-pixel, pixel, sdCourtLines(uv)));
+That replaces ~30 lines of if with 6 lines and anti‑aliases every line uniformly.
+
+3. A cleaner structure for the same idea
+Conceptually split mainImage into pure functions:
+
+glsl
+struct Surface { vec3 albedo; vec3 normal; float height; float occ; };
+
+Surface sceneBackground(vec2 p);          // floor + walls, sets normal/height
+Surface sceneRobot(vec2 p, int i);        // sphere + visor
+Surface sceneBall(vec2 p);
+
+Surface scene(vec2 p) {
+    Surface s = sceneBackground(p);
+    for (int i=0;i<numrobs;i++) {
+        float d = length(p - uRob[i].xy) - uRob[i].w;
+        if (d < 0.0) s = blend(s, sceneRobot(p,i), aa(d));
+        s.occ *= softAO(d, uRob[i].w);    // your robambient trick
+    }
+    return s;
+}
+
+vec3 shade(Surface s, vec2 p) {
+    vec3 c = vec3(0);
+    for (int j=0;j<numlights;j++)
+        c += lightContribution(s, p, uLights[j]) * shadowTerm(p, s.height, j);
+    return s.albedo * (ambient*s.occ + c) + specular(...);
+}
+Same math, but now:
+
+Each piece is testable in isolation.
+Porting to OpenGL / Metal / WGSL is mechanical.
+Adding a new entity type = one new sceneX function.
+4. When would you change architecture?
+Need    Better approach
+Many more robots (50+)  Draw robots as instanced quads with their own fragment shader; draw floor as one quad; composite. Shadows become a separate pass rendered into a texture.
+Fancier 3D shapes, camera tilt  Then ray‑marching an SDF scene starts to pay off.
+Post effects (bloom, motion blur)   Go multi‑pass: render scene → FBO → post shader. Still "one renderer", just two draw calls.
+Keep exactly what you have  Stay analytical; just refactor as above.
+The single‑quad approach is lovely for portability (WebGL ↔ desktop GL ↔ WebGPU: same FS, trivial VS). Don't abandon it unless entity count or visual complexity forces you to.
+
+5. Quick wins checklist
+ Move Robs[] / lights[] construction to CPU → uniforms/UBO.
+ Kill global mutable vars; pass uv, pixel explicitly.
+ Cache vec2 dir = vec2(cos(rot), sin(rot)) once per robot.
+ Replace wall/line if ladder with SDF + smoothstep.
+ Collapse shadow loop: 2 casting lights max, 2D projected shadow instead of 3D line test.
+ Replace x/length(x) with normalize(x), remove duplicate distance() calls.
+ Delete dead vars in the visor block (SpFl/SpFr/SpBl/SpBr, inTri partly).
+ lights[3] / lights[1] swap trick → just compute the one relevant goal light on CPU.
+If you want, I can refactor one section (e.g. the robot/visor surface function, or the lighting pass) into the cleaner SDF style so you have a template to convert the rest.
+
