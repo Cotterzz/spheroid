@@ -47,6 +47,7 @@ export function createWorld() {
     hook:  C.PHYSICS.defaultHook,
     delta: C.PHYSICS.defaultDelta,
     power: C.PHYSICS.defaultPower,
+    ballVisualScale: 1.0,
     slowing: false,
   };
 }

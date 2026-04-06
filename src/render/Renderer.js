@@ -19,7 +19,7 @@ export class Renderer {
     this.program = createProgram(gl, VS, FS);
     this.uniforms = getUniformLocations(gl, this.program, [
       'iResolution', 'iTime', 'entities',
-      'activerobs', 'player', 'hasball',
+      'activerobs', 'player', 'hasball', 'power', 'ballScale',
     ]);
 
     this.vao = gl.createVertexArray();
@@ -75,6 +75,8 @@ export class Renderer {
     gl.uniform1i(u.activerobs, world.entities.length);
     gl.uniform1i(u.player, world.playerIndex);
     gl.uniform1i(u.hasball, world.ballCarrierIndex);
+    gl.uniform1f(u.power, world.power);
+    gl.uniform1f(u.ballScale, world.ballVisualScale);
 
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }

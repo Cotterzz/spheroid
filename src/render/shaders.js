@@ -11,6 +11,8 @@ uniform vec3 entities[11];   // xy = shader-space pos, z = rotation
 uniform int activerobs;
 uniform int player;
 uniform int hasball;
+uniform float power;
+uniform float ballScale;
 
 out vec4 outColor;
 
@@ -187,12 +189,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
     bool tracting = (tracter > 0);
 
     float sinw = sin(mTime*50.0);
-    Robs[0].position = vec3(entities[0].xy, bradius);
+    Robs[0].position = vec3(entities[0].xy, bradius * ballScale);
     if(tractee==0 && tracting){
       Robs[0].position.x += sinw/400.0;
       Robs[0].position.y -= sinw/400.0;
     }
-    Robs[0].radius = bradius;
+    Robs[0].radius = bradius * ballScale;
     Robs[0].ison = true;
     Robs[0].colourA = vec3(1.2);
     Robs[player].colourA = pred;
@@ -424,12 +426,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
         if(tractor<lw){ f = smoothstep(lv, lw, tractor); col = mix(col+lcol, col, f); }
 
         if(rindex==tractee){
-            float llw = 0.4;
+            float powerNorm = clamp((power - 0.1) / 0.9, 0.0, 1.0);
+            float llw = 0.05 + powerNorm * 0.5;
             vec3 lnorm = vec3(sin(mTime*3.), cos(mTime*11.), cos(mTime*7.));
             float ncola = sin(dot(normal, lnorm));
             float ncolc = sin(dot(normal, lnorm.zxy));
-            if(ncolc>sin(ncola*5.) && ncolc<sin(ncola*5.)+llw) col += tcol;
-            if(ncola>sin(ncolc*5.) && ncola<sin(ncolc*5.)+llw) col += tcol;
+            vec3 glowCol = tcol * (0.5 + powerNorm * 1.5);
+            if(ncolc>sin(ncola*5.) && ncolc<sin(ncola*5.)+llw) col += glowCol;
+            if(ncola>sin(ncolc*5.) && ncola<sin(ncolc*5.)+llw) col += glowCol;
         }
     }
 

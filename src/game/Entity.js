@@ -19,6 +19,9 @@ export class Entity {
     this.targetAngle = 0;
     this.desiredSpeed = 0;
     this.ballDist = Infinity;
+
+    // Tackle/catch state
+    this.catchCooldown = 0;
   }
 
   get isBall()  { return this.team === 'ball';  }

@@ -1,8 +1,11 @@
 import { WORLD } from '../config.js';
 
 /**
- * Fires: 'pointerEnter', 'pointerLeave', 'actionDown', 'actionUp'
- * Exposes: pointerX, pointerY (canvas-space px), stickX, stickY, hasGamepad
+ * Fires: 'pointerEnter', 'pointerLeave',
+ *        'actionDown', 'actionUp'   (shoot/charge — left-click / RT / button 0)
+ *        'actionBDown'              (tackle/catch — right-click / LB)
+ * Exposes: pointerX, pointerY (canvas-space px), stickX, stickY,
+ *          triggerValue (0..1 from RT axis), hasGamepad
  */
 export class Input {
   constructor(element) {
@@ -11,8 +14,11 @@ export class Input {
     this.pointerY = 0;
     this.stickX = 0;
     this.stickY = 0;
+    this.triggerValue = 0;
     this.hasGamepad = false;
     this._gpActionHeld = false;
+    this._gpActionBHeld = false;
+    this._gpTriggerFiring = false;
     this._listeners = {};
     this._attach();
   }
@@ -30,8 +36,14 @@ export class Input {
 
     el.addEventListener('mouseover', () => this.emit('pointerEnter'));
     el.addEventListener('mouseout',  () => this.emit('pointerLeave'));
-    el.addEventListener('mousedown', () => this.emit('actionDown'));
-    el.addEventListener('mouseup',   () => this.emit('actionUp'));
+    el.addEventListener('mousedown', e => {
+      if (e.button === 0) this.emit('actionDown');
+      if (e.button === 2) this.emit('actionBDown');
+    });
+    el.addEventListener('mouseup', e => {
+      if (e.button === 0) this.emit('actionUp');
+    });
+    el.addEventListener('contextmenu', e => e.preventDefault());
     el.addEventListener('mousemove', e => this._setPointer(e));
 
     el.addEventListener('touchstart', e => {
@@ -74,10 +86,27 @@ export class Input {
     for (const gp of navigator.getGamepads()) {
       if (!gp) continue;
 
-      // Button 0 -> actionDown/Up edge events
+      // Button 0 (A) -> actionDown/Up edge events (charge-shot fallback)
       const down = gp.buttons[0]?.pressed;
       if (down && !this._gpActionHeld) { this.emit('actionDown'); this._gpActionHeld = true; }
       else if (!down && this._gpActionHeld) { this.emit('actionUp'); this._gpActionHeld = false; }
+
+      // LB (button 4) -> actionBDown edge event (tackle/catch)
+      const lb = gp.buttons[4]?.pressed;
+      if (lb && !this._gpActionBHeld) { this.emit('actionBDown'); this._gpActionBHeld = true; }
+      else if (!lb && this._gpActionBHeld) { this._gpActionBHeld = false; }
+
+      // RT (button 7) -> analog shoot: value 0..1
+      const rt = gp.buttons[7]?.value || 0;
+      this.triggerValue = rt;
+      const triggerThreshold = 0.1;
+      if (rt > triggerThreshold && !this._gpTriggerFiring) {
+        this.emit('actionDown');
+        this._gpTriggerFiring = true;
+      } else if (rt <= triggerThreshold && this._gpTriggerFiring) {
+        this.emit('actionUp');
+        this._gpTriggerFiring = false;
+      }
 
       // Left stick with deadzone
       let sx = gp.axes[0] || 0, sy = gp.axes[1] || 0;

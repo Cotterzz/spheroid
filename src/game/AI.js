@@ -1,9 +1,10 @@
 import * as C from '../config.js';
 
 export class AI {
-  constructor(world, input) {
+  constructor(world, input, physics) {
     this.world = world;
     this.input = input;
+    this.physics = physics;
   }
 
   update() {
@@ -42,6 +43,32 @@ export class AI {
       const c = w.entities[w.ballCarrierIndex];
       c.targetX = c.isGreen ? -5 : 5;
       c.targetY = 0;
+    }
+
+    this._aiActions();
+  }
+
+  _aiActions() {
+    const w = this.world;
+    const physics = this.physics;
+    const human = w.entities[w.playerIndex];
+
+    for (let i = 1; i < w.entities.length; i++) {
+      if (i === w.playerIndex) continue;
+      const e = w.entities[i];
+      if (e.catchCooldown > 0) continue;
+
+      if (w.ballCarrier && w.ballCarrierIndex !== i && w.ballCarrier.team !== e.team) {
+        if (e.ballDist < C.PHYSICS.tackleDist * 1.2) {
+          physics.tackle(i);
+          continue;
+        }
+      }
+
+      if (!w.ballCarrier) {
+        if (e.team === human.team && human.ballDist < e.ballDist) continue;
+        physics.catch(i);
+      }
     }
   }
 

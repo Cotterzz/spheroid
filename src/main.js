@@ -14,11 +14,19 @@ const scoreEls  = {
 const world    = createWorld();
 const physics  = new Physics(world);
 const input    = new Input(container);
-const ai       = new AI(world, input);
+const ai       = new AI(world, input, physics);
 const renderer = new Renderer(canvas);
 
 input.on('actionDown',   () => physics.slow());
 input.on('actionUp',     () => physics.fast());
+input.on('actionBDown',  () => {
+  const pi = world.playerIndex;
+  if (world.ballCarrier && world.ballCarrierIndex !== pi) {
+    physics.tackle(pi);
+  } else if (!world.ballCarrier) {
+    physics.catch(pi);
+  }
+});
 input.on('pointerEnter', () => startLoop());
 input.on('pointerLeave', () => stopLoop());
 window.addEventListener('resize', () => renderer.resize());
@@ -39,6 +47,9 @@ function loop(now) {
 
   while (accumulator >= FIXED_DT) {
     input.update();
+    if (input.triggerValue > 0.1 && world.ballCarrierIndex === world.playerIndex) {
+      world.power = input.triggerValue;
+    }
     ai.update();
     physics.update();
     time += FIXED_DT * world.delta;

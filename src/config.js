@@ -40,6 +40,11 @@ export const PHYSICS = {
   releaseDist: 0.4,
   shootDist: 1.0,
   angleLockThreshold: 1.9,
+  tackleDist: 1.5,
+  catchDist: 0.5,
+  tackleImpulse: 0.15,
+  catchCooldownTicks: 30,
+  tacklePriorityTicks: 18,
 };
 
 // Formation tables indexed by entity id (0 unused). Values 0..2, where

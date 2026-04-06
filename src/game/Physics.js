@@ -8,6 +8,8 @@ export class Physics {
     this._justScored = false;
     this._lastShooter  = null;
     this._shotCooldown = 0;
+    this._tacklePriority = null;
+    this._tacklePriorityTimer = 0;
   }
 
   // --- Public actions ---------------------------------------------
@@ -53,10 +55,83 @@ export class Physics {
     this._justScored = true;
   }
 
+  tackle(tacklerIndex) {
+    const w = this.world;
+    const e = w.entities[tacklerIndex];
+    if (e.catchCooldown > 0) return false;
+    if (w.ballCarrierIndex === tacklerIndex) return false;
+    if (!w.ballCarrier) return false;
+
+    const carrier = w.ballCarrier;
+    if (carrier.team === e.team) return false;
+
+    const dist = Math.hypot(carrier.x - e.x, carrier.y - e.y);
+    if (dist > C.PHYSICS.tackleDist) return false;
+
+    const impulse = Math.max(w.power, C.PHYSICS.tackleImpulse);
+    const a = carrier.angle - C.HALF_PI;
+    w.ball.vx = impulse * Math.cos(a) + carrier.vx;
+    w.ball.vy = impulse * Math.sin(a) + carrier.vy;
+    w.ballCarrier = null;
+    w.ballCarrierIndex = 0;
+    w.power = C.PHYSICS.defaultPower;
+
+    e.catchCooldown = C.PHYSICS.catchCooldownTicks;
+    this._tacklePriority = e;
+    this._tacklePriorityTimer = C.PHYSICS.tacklePriorityTicks;
+    return true;
+  }
+
+  catch(robotIndex) {
+    const w = this.world;
+    const e = w.entities[robotIndex];
+    if (e.catchCooldown > 0) return false;
+    if (w.ballCarrier) return false;
+    if (e === this._lastShooter && this._shotCooldown > 0) return false;
+
+    if (this._tacklePriority && this._tacklePriorityTimer > 0 && e !== this._tacklePriority) {
+      return false;
+    }
+
+    const ball = w.ball;
+    const ballSpeed = Math.hypot(ball.vx, ball.vy);
+    const speedPenalty = Math.min(ballSpeed / C.PHYSICS.maxPower, 1.0);
+    const effectiveCatchDist = C.PHYSICS.catchDist * (1.0 - speedPenalty * 0.7);
+
+    const facing = e.angle - C.HALF_PI;
+    const hx = e.x + w.hook * Math.cos(facing);
+    const hy = e.y + w.hook * Math.sin(facing);
+    if (Math.hypot(ball.x - hx, ball.y - hy) > effectiveCatchDist) return false;
+
+    w.ballCarrier = e;
+    w.ballCarrierIndex = robotIndex;
+    if (robotIndex < C.GREEN_RANGE[0]) w.playerIndex = robotIndex;
+    e.catchCooldown = C.PHYSICS.catchCooldownTicks;
+    this._tacklePriority = null;
+    this._tacklePriorityTimer = 0;
+    return true;
+  }
+
   // --- Main update ------------------------------------------------
 
   update() {
     const w = this.world;
+
+    // ---- Per-frame: cooldown ticks ----
+    if (this._tacklePriorityTimer > 0) this._tacklePriorityTimer--;
+    for (let i = 1; i < w.entities.length; i++) {
+      if (w.entities[i].catchCooldown > 0) w.entities[i].catchCooldown--;
+    }
+
+    // ---- Per-frame: ball visual scale ----
+    if (w.ballCarrier) {
+      const pn = (w.power - C.PHYSICS.defaultPower) / (C.PHYSICS.maxPower - C.PHYSICS.defaultPower);
+      w.ballVisualScale = 1.0 + pn * 0.6;
+    } else if (w.ballVisualScale > 1.001) {
+      w.ballVisualScale += (1.0 - w.ballVisualScale) * 0.08;
+    } else {
+      w.ballVisualScale = 1.0;
+    }
 
     // ---- Per-frame: slowing decay ----
     if (w.slowing) {
@@ -127,15 +202,6 @@ export class Physics {
 
     // 5. Ball release check (collision may have knocked it out of the hook)
     this._updateBall();
-
-    // 6. Pickup check
-    if (!w.ballCarrier) {
-      for (let i = 0; i < ents.length; i++) {
-        const e = ents[i];
-        if (e.isBall) continue;
-        this._tryPickup(i, e);
-      }
-    }
   }
 
   // --- Helpers ----------------------------------------------------
@@ -256,21 +322,6 @@ export class Physics {
     // AI carrier auto-shoot
     if (w.ballCarrierIndex === i && e.targetDist < C.PHYSICS.shootDist && !isHuman) {
       this.shoot(e);
-    }
-  }
-
-  _tryPickup(i, e) {
-    if (e === this._lastShooter && this._shotCooldown > 0) return;
-    const w = this.world;
-    const ball = w.ball;
-    const facing = e.angle - C.HALF_PI;
-    const hx = e.x + w.hook * Math.cos(facing);
-    const hy = e.y + w.hook * Math.sin(facing);
-    const pdx = ball.x - hx, pdy = ball.y - hy;
-    if (Math.hypot(pdx, pdy) < C.PHYSICS.pickupDist) {
-      w.ballCarrier = e;
-      w.ballCarrierIndex = i;
-      if (i < C.GREEN_RANGE[0]) w.playerIndex = i;
     }
   }
 
