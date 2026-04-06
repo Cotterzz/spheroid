@@ -1,0 +1,938 @@
+A
+Improving the 5-a-side AI
+What you have is a solid "everyone hold formation, nearest chases, carrier runs at goal" baseline. That's actually the right foundation — most football game AI is layered on top of exactly this. Here's how I'd build it up, roughly in order of effort-to-payoff.
+
+1. Quick wins (no architecture change)
+Predict the ball, don't chase it
+Chasing ball.x, ball.y means defenders always trail a moving ball. Intercept instead:
+
+js
+_predictBall(ball, chaser, lookahead = 0.5) {
+  // crude: aim where the ball will be in `lookahead` seconds
+  return {
+    x: ball.x + ball.vx * lookahead,
+    y: ball.y + ball.vy * lookahead,
+  };
+}
+Use this for nearestRed / nearestGreen targets. Even a fixed lookahead feels dramatically smarter.
+
+Carrier shouldn't run in a straight line
+Right now the carrier beelines to (±5, 0). Add simple obstacle avoidance and a "shoot when close" check:
+
+js
+_carrierThink(c, opponents, goalX) {
+  // 1. Shoot if in range & has a lane
+  if (Math.abs(c.x - goalX) < C.SHOOT_RANGE && this._clearLane(c, {x: goalX, y: 0}, opponents)) {
+    return { action: 'shoot', tx: goalX, ty: (Math.random() - 0.5) * C.GOAL_WIDTH };
+  }
+  // 2. Steer toward goal but repelled by nearby defenders
+  let tx = goalX, ty = 0;
+  for (const o of opponents) {
+    const dx = c.x - o.x, dy = c.y - o.y;
+    const d2 = dx*dx + dy*dy;
+    if (d2 < C.AVOID_RADIUS * C.AVOID_RADIUS) {
+      const f = C.AVOID_STRENGTH / Math.max(d2, 0.01);
+      tx += dx * f;
+      ty += dy * f;
+    }
+  }
+  return { action: 'run', tx, ty };
+}
+Remove magic numbers
+-5 : 5 → C.GOAL_X.red / C.GOAL_X.green.
+
+2. Tactical depth
+Passing (biggest single upgrade)
+A carrier who can pass transforms the feel of the game. Use a simple utility score per teammate:
+
+js
+_bestPass(carrier, teammates, opponents, goalX) {
+  let best = null, bestScore = 0.2; // threshold: keep dribbling if nothing beats this
+  for (const t of teammates) {
+    if (t === carrier) continue;
+    let score = 0;
+    score += 0.5 * (1 - Math.abs(t.x - goalX) / (2 * C.AI_FIELD.halfX)); // closer to goal
+    score += this._clearLane(carrier, t, opponents) ? 0.4 : -0.3;        // open lane
+    score -= Math.hypot(t.x - carrier.x, t.y - carrier.y) * 0.02;        // not too far
+    score -= this._nearestOppDist(t, opponents) < 1.0 ? 0.3 : 0;         // receiver marked?
+    if (score > bestScore) { bestScore = score; best = t; }
+  }
+  return best;
+}
+
+_clearLane(from, to, opponents, width = 0.6) {
+  const dx = to.x - from.x, dy = to.y - from.y;
+  const len = Math.hypot(dx, dy);
+  for (const o of opponents) {
+    // project opponent onto the pass line
+    const t = ((o.x - from.x)*dx + (o.y - from.y)*dy) / (len*len);
+    if (t < 0 || t > 1) continue;
+    const px = from.x + t*dx, py = from.y + t*dy;
+    if (Math.hypot(o.x - px, o.y - py) < width) return false;
+  }
+  return true;
+}
+Then the carrier decision becomes: shoot? → pass? → dribble.
+
+Off-ball attackers make runs
+Instead of pure formation slots, attackers without the ball should drift into open space ahead of the carrier:
+
+js
+// blend formation with "get open"
+e.targetX = lerp(formX, openSpaceX, 0.5);
+e.targetY = lerp(formY, openSpaceY, 0.5);
+"Open space" can be as simple as: move away from your nearest marker while staying roughly in your formation zone.
+
+Defenders mark, not just zone
+When defending, pair each outfield defender to the nearest unmarked attacker and stand goal-side:
+
+js
+d.targetX = lerp(attacker.x, ownGoalX, 0.2);
+d.targetY = lerp(attacker.y, 0,        0.1);
+Goalkeeper
+Index 0 on each team (or however you flag it) should:
+
+Stay on the goal line, clamped to goal width
+Y-position = projection of ball→goal line onto goal line
+Rush out only if ball is loose and very close
+3. Architecture: split "team brain" from "player brain"
+Right now one update() does everything. It'll get messy fast. A clean split:
+
+js
+class TeamAI {
+  update(w, team) {
+    team.state = this._decideState(w, team);  // ATTACK / DEFEND / TRANSITION
+    this._assignRoles(w, team);               // carrier, chaser, support[], marker[], gk
+  }
+}
+
+class PlayerAI {
+  update(w, e) {
+    switch (e.role) {
+      case 'carrier': return this.carrier(w, e);
+      case 'chaser':  return this.chase(w, e);
+      case 'support': return this.support(w, e);
+      case 'marker':  return this.mark(w, e);
+      case 'gk':      return this.keeper(w, e);
+      default:        return this.holdFormation(w, e);
+    }
+  }
+}
+This is essentially a lightweight role-based FSM, which is what most arcade football games (Sensible Soccer through early FIFA) used. If you later want more nuance, each role's method can become a small utility selector ("score each possible action, pick the best") without changing the structure.
+
+4. Game-feel polish
+Reaction delay / noise per difficulty level: only re-evaluate decisions every N ms, and add ± noise to targets. Perfect AI feels robotic.
+Separation steering so teammates don't clump on the same pixel.
+Hysteresis on nearestRed/Green so two players don't flicker-swap the chaser role every frame.
+Don't flip w.attacking instantly — a short transition state stops the whole team snapping formations on every turnover.
+5. If you want to go deep later
+Influence maps / potential fields for positioning (heat map of "good places to stand").
+Behavior trees if role logic gets branchy.
+Precomputed passing graphs updated every few frames rather than per-player per-frame.
+Suggested next step
+If I were you I'd do these three first — they're ~100 lines total and make it feel like a different game:
+
+Ball interception prediction for chasers
+Carrier: shoot → pass → dribble-with-avoidance
+Goal-side marking for defenders
+Want me to sketch a refactored AI.update() that integrates those three into your current structure?
+
+B
+AI Improvement Ideas for Your 5-a-Side Game
+Your current AI is a solid foundation — formation-based positioning with ball chasing. Here are ways to build on it, roughly ordered from easy wins to deeper changes.
+
+1. Role-Based Behavior Instead of Index-Based
+Right now behavior is hard-coded by array index. Giving each entity a role makes things cleaner and more expressive:
+
+js
+// Roles: 'goalkeeper', 'defender', 'midfielder', 'striker'
+const ROLES = {
+  goalkeeper: { aggression: 0.1, homeX: -0.9, chaseRadius: 1.5 },
+  defender:   { aggression: 0.3, homeX: -0.5, chaseRadius: 3.0 },
+  midfielder: { aggression: 0.6, homeX:  0.0, chaseRadius: 5.0 },
+  striker:    { aggression: 0.9, homeX:  0.5, chaseRadius: 6.0 },
+};
+A goalkeeper that actually stays on its line is a huge quality improvement.
+
+2. State Machine Per Entity
+A tiny FSM gives much richer behavior than "everyone runs to ball-space":
+
+js
+// States: IDLE, SUPPORT, CHASE, INTERCEPT, CARRY, MARK, RETURN_HOME
+updateEntity(e) {
+  switch (e.state) {
+    case 'CHASE':    this.chaseBall(e); break;
+    case 'SUPPORT':  this.moveToSupportPosition(e); break;
+    case 'MARK':     this.markOpponent(e); break;
+    case 'CARRY':    this.dribbleOrPass(e); break;
+    case 'INTERCEPT':this.interceptBall(e); break;
+  }
+  e.state = this.decideState(e); // re-evaluate next frame
+}
+3. Ball Interception (Predict Where the Ball Will Be)
+Chasing the ball's current position is reactive. Predict instead:
+
+js
+predictBallPos(t) {
+  return {
+    x: ball.x + ball.vx * t,
+    y: ball.y + ball.vy * t,
+  };
+}
+
+// Find time t where entity can reach predicted ball position
+interceptPoint(e) {
+  for (let t = 0; t < 2; t += 0.1) {
+    const p = this.predictBallPos(t);
+    const dist = Math.hypot(p.x - e.x, p.y - e.y);
+    if (dist / e.maxSpeed <= t) return p;
+  }
+  return { x: ball.x, y: ball.y };
+}
+This alone makes the AI feel dramatically smarter.
+
+4. Smart Carrier Decisions (Pass / Shoot / Dribble)
+Your carrier currently just runs at the goal. Give it a utility evaluation:
+
+js
+decideCarrierAction(c) {
+  const shot = this.evaluateShot(c);        // angle & distance to goal
+  const passes = this.evaluatePasses(c);    // open teammates ahead
+  const dribble = this.evaluateDribble(c);  // open space ahead
+
+  const best = [shot, ...passes, dribble].sort((a,b) => b.score - a.score)[0];
+  return best;
+}
+
+evaluatePasses(c) {
+  return w.entities
+    .filter(t => t.isGreen === c.isGreen && t !== c)
+    .map(t => ({
+      type: 'pass', target: t,
+      score: this.passLaneClear(c, t) * this.forwardness(c, t),
+    }));
+}
+5. Opponent Marking / Pressure
+Defenders should pick a man to mark:
+
+js
+assignMarks() {
+  const defenders = this.teamDefenders(opponentTeam);
+  const attackers = this.teamAttackers(myTeam);
+  // Hungarian algorithm is overkill — greedy nearest works fine
+  for (const d of defenders) {
+    d.markTarget = nearestUnmarked(d, attackers);
+  }
+}
+Marked position = between the attacker and your own goal, not on them.
+
+6. Support Positioning (Off-Ball Movement)
+Instead of just formation points, off-ball teammates should move into passing lanes:
+
+js
+getSupportPos(e, carrier) {
+  // Offer a sideways/forward option that isn't blocked
+  const forward = carrier.isGreen ? -1 : 1;
+  const candidates = [
+    { x: carrier.x + forward * 2, y: carrier.y + 1.5 },
+    { x: carrier.x + forward * 2, y: carrier.y - 1.5 },
+    { x: carrier.x + forward * 3, y: carrier.y },
+  ];
+  return candidates
+    .filter(p => this.passLaneClear(carrier, p))
+    .sort((a,b) => this.openness(b) - this.openness(a))[0];
+}
+7. Difficulty Tuning Knobs
+Make the AI easy to tune — both for balance and for difficulty levels:
+
+js
+// In config
+AI_PARAMS = {
+  reactionTime: 0.2,     // delay before responding to events
+  aimError: 0.1,         // radians of wobble
+  decisionInterval: 0.15,// don't re-decide every frame
+  passAccuracy: 0.9,
+  interceptSkill: 0.8,
+};
+Re-deciding every frame causes jitter and is wasteful. Cache decisions for ~100–200ms.
+
+8. Avoid Clumping (Teammate Separation)
+Big quality-of-life fix. Add a simple repulsion force between same-team entities when choosing targets:
+
+js
+applySeparation(e) {
+  for (const other of sameTeam(e)) {
+    if (other === e) continue;
+    const dx = e.targetX - other.targetX;
+    const dy = e.targetY - other.targetY;
+    const d = Math.hypot(dx, dy);
+    if (d < MIN_SPACING) {
+      e.targetX += (dx/d) * (MIN_SPACING - d) * 0.5;
+      e.targetY += (dy/d) * (MIN_SPACING - d) * 0.5;
+    }
+  }
+}
+9. Cleaner Formation Math
+Your _formX is a bit opaque. It's really a piecewise lerp — could be one line:
+
+js
+_formX(n, ballX) {
+  const H = C.AI_FIELD.halfX;
+  // n=0 => -H, n=1 => ballX, n=2 => +H
+  return n <= 1
+    ? lerp(-H, ballX, n)
+    : lerp(ballX, H, n - 1);
+}
+const lerp = (a, b, t) => a + (b - a) * t;
+10. Longer-Term: Utility AI or Behavior Tree
+Once you have a handful of actions (chase, mark, support, intercept, cover, retreat), a tiny utility system scales well:
+
+js
+const actions = [
+  { name: 'chase',     score: e => ballDist(e) < 3 ? 0.8 : 0.2 },
+  { name: 'mark',      score: e => hasUnmarkedOpp(e) ? 0.6 : 0 },
+  { name: 'support',   score: e => isTeamAttacking() ? 0.7 : 0.1 },
+  { name: 'goalie',    score: e => e.role === 'gk' ? 1.0 : 0 },
+];
+e.action = actions.sort((a,b) => b.score(e) - a.score(e))[0].name;
+Suggested order of attack
+Roles + dedicated goalkeeper (biggest visible improvement for least work)
+Ball interception / prediction
+Separation / anti-clumping
+Carrier decision making (pass/shoot/dribble)
+Marking for defenders
+Difficulty knobs once behaviors exist to tune
+Happy to dig deeper into any of these — the interception math or utility scoring are particularly fun to get right.
+
+A
+State Machine + Entity Improvements
+Great — seeing the Entity class helps a lot. It's basically a data bag + steering target, and something else (physics/steering) moves it toward targetX/Y. That's a good separation. We can layer an FSM on top without touching physics at all: states just decide targetX/Y (and optionally desiredSpeed).
+
+1. Extend Entity with role + state
+Keep Entity dumb — just add fields the AI can use:
+
+js
+export class Entity {
+  constructor({ x = 0, y = 0, angle = 0, mass = 1, radius = 0.2,
+                maxVel = 0.13, team = 'ball', role = null, limits = {} }) {
+    this.x = x; this.y = y;
+    this.vx = 0; this.vy = 0;
+    this.angle = angle;
+    this.mass = mass;
+    this.radius = radius;
+    this.maxVel = maxVel;
+    this.team = team;        // 'ball' | 'red' | 'green'
+    this.role = role;        // 'gk' | 'def' | 'mid' | 'att' | null
+    this.limits = limits;
+
+    // Steering target (unchanged — physics reads these)
+    this.targetX = 0;
+    this.targetY = 0;
+    this.targetDist = 0;
+    this.targetAngle = 0;
+    this.desiredSpeed = 0;
+
+    // AI state
+    this.state = 'HOLD';     // current FSM state
+    this.stateTime = 0;      // seconds in current state
+    this.decisionTimer = 0;  // throttle re-decisions
+    this.markTarget = null;  // Entity being marked (defense)
+    this.homeX = x;          // formation anchor
+    this.homeY = y;
+
+    // Cached perceptions (filled by AI each frame)
+    this.ballDist = Infinity;
+    this.goalDir = 1;        // +1 attacks right, -1 attacks left
+  }
+
+  get isBall()  { return this.team === 'ball';  }
+  get isRed()   { return this.team === 'red';   }
+  get isGreen() { return this.team === 'green'; }
+
+  setState(s) {
+    if (this.state !== s) {
+      this.state = s;
+      this.stateTime = 0;
+    }
+  }
+}
+Key additions:
+
+role — fixed at spawn, drives personality (chase radius, aggression, home position)
+state + stateTime — the FSM itself
+decisionTimer — avoids per-frame thrashing
+markTarget / homeX/Y — blackboard data that states read/write
+goalDir — so state code doesn't need isGreen ? -1 : 1 everywhere
+2. Role definitions (config)
+js
+// config.js
+export const ROLES = {
+  gk:  { chaseRadius: 1.2, aggression: 0.05, recoverSpeed: 1.0, leash: 1.5 },
+  def: { chaseRadius: 2.5, aggression: 0.3,  recoverSpeed: 0.9, leash: 4.0 },
+  mid: { chaseRadius: 4.0, aggression: 0.6,  recoverSpeed: 0.8, leash: 6.0 },
+  att: { chaseRadius: 5.0, aggression: 0.9,  recoverSpeed: 0.6, leash: 8.0 },
+};
+chaseRadius — how close the ball must be before this role will go for it
+leash — max distance from homeX/Y before being dragged back
+aggression — biases transitions toward attacking states
+3. The States
+Keep the set small. Six is plenty for 5-a-side:
+
+State When  What it does
+HOLD  default / nothing urgent  drift toward homeX/Y (formation slot)
+CHASE loose ball, I'm nearest on my team  go to intercept point, not ball pos
+CARRY I have the ball dribble toward goal / evaluate pass / shoot
+SUPPORT teammate has ball move into an open passing lane ahead of carrier
+MARK  opponent has ball, I'm not the presser  stand between markTarget and my goal
+PRESS opponent has ball, I'm nearest  close down the carrier
+KEEP  role === gk stay on goal line, track ball Y, only leave line if ball very close
+4. FSM structure in the AI class
+Split your update() into three phases: perceive → decide → act.
+
+js
+export class AI {
+  constructor(world, input) {
+    this.world = world;
+    this.input = input;
+  }
+
+  update(dt) {
+    const w = this.world;
+
+    this._perceive(w);               // fill ballDist, homeX/Y, nearest flags, etc.
+
+    for (let i = 1; i < w.entities.length; i++) {
+      const e = w.entities[i];
+      if (i === w.playerIndex) { this._steerHuman(e); continue; }
+
+      e.stateTime += dt;
+      e.decisionTimer -= dt;
+
+      if (e.decisionTimer <= 0) {
+        e.setState(this._decide(e, w));
+        e.decisionTimer = C.AI_PARAMS.decisionInterval;  // e.g. 0.15s
+      }
+
+      this._act(e, w);               // sets e.targetX/Y based on e.state
+      this._applyLeash(e);           // drag back toward home if too far
+      this._applySeparation(e, w);   // anti-clump nudge on target
+    }
+  }
+5. _decide — the transition function
+This is the heart of it. One function, reads world + entity, returns a state name. No side effects.
+
+js
+_decide(e, w) {
+  const role = C.ROLES[e.role];
+  const ball = w.ball;
+  const myTeamHasBall = w.ballCarrier && w.ballCarrier.team === e.team;
+  const oppHasBall    = w.ballCarrier && w.ballCarrier.team !== e.team;
+  const looseBall     = !w.ballCarrier;
+
+  // Goalkeeper is simple and overrides everything
+  if (e.role === 'gk') {
+    return (e.ballDist < role.chaseRadius && looseBall) ? 'CHASE' : 'KEEP';
+  }
+
+  // I have the ball
+  if (w.ballCarrier === e) return 'CARRY';
+
+  // Loose ball
+  if (looseBall) {
+    const iAmNearest = this._nearestTeammateToBall(e.team) === e;
+    if (iAmNearest && e.ballDist < role.chaseRadius) return 'CHASE';
+    // second-nearest can also chase a bit if aggressive
+    if (e.ballDist < role.chaseRadius * role.aggression) return 'CHASE';
+    return 'HOLD';
+  }
+
+  // Teammate has ball → attack shape
+  if (myTeamHasBall) {
+    return 'SUPPORT';
+  }
+
+  // Opponent has ball → defend
+  if (oppHasBall) {
+    const presser = this._nearestTeammateTo(w.ballCarrier, e.team);
+    if (presser === e) return 'PRESS';
+    return 'MARK';
+  }
+
+  return 'HOLD';
+}
+Notice there's no hysteresis logic cluttering this up — the decisionTimer throttle plus stateTime give you enough stability. If you find a specific flicker (e.g. CHASE↔HOLD), add a small bias:
+
+js
+// inside _decide, sticky chase
+if (e.state === 'CHASE' && e.ballDist < role.chaseRadius * 1.3) return 'CHASE';
+6. _act — one function per state
+Each just sets targetX/Y (and optionally desiredSpeed). Pure and testable.
+
+js
+_act(e, w) {
+  switch (e.state) {
+    case 'HOLD':    return this._actHold(e, w);
+    case 'CHASE':   return this._actChase(e, w);
+    case 'CARRY':   return this._actCarry(e, w);
+    case 'SUPPORT': return this._actSupport(e, w);
+    case 'PRESS':   return this._actPress(e, w);
+    case 'MARK':    return this._actMark(e, w);
+    case 'KEEP':    return this._actKeep(e, w);
+  }
+}
+
+_actHold(e, w) {
+  // Your existing formation math becomes the HOLD behaviour
+  const form = w.attacking ? C.FORMATIONS.attack : C.FORMATIONS.defense;
+  e.homeX = this._formX(form.x[e.index], w.ball.x);
+  e.homeY = this._formY(form.y[e.index], w.ball.y);
+  e.targetX = e.homeX;
+  e.targetY = e.homeY;
+  e.desiredSpeed = e.maxVel * 0.7;   // jog, don't sprint
+}
+
+_actChase(e, w) {
+  const p = this._interceptPoint(e, w.ball);  // predict, don't chase tail
+  e.targetX = p.x;
+  e.targetY = p.y;
+  e.desiredSpeed = e.maxVel;
+}
+
+_actPress(e, w) {
+  const c = w.ballCarrier;
+  // Stand slightly goal-side of carrier, not on top of them
+  e.targetX = c.x - e.goalDir * 0.3;
+  e.targetY = c.y;
+  e.desiredSpeed = e.maxVel;
+}
+
+_actMark(e, w) {
+  if (!e.markTarget || e.markTarget.team === e.team) {
+    e.markTarget = this._pickMark(e, w);   // nearest unmarked opponent
+  }
+  const m = e.markTarget;
+  const goalX = -e.goalDir * C.AI_FIELD.halfX;
+  // 70% toward opponent, 30% toward own goal — classic goal-side marking
+  e.targetX = lerp(goalX, m.x, 0.7);
+  e.targetY = lerp(0,     m.y, 0.7);
+  e.desiredSpeed = e.maxVel * 0.9;
+}
+
+_actSupport(e, w) {
+  const c = w.ballCarrier;
+  const fwd = e.goalDir;
+  // Offer a diagonal option; flip side based on which half I'm in
+  const side = (e.y > c.y) ? 1 : -1;
+  e.targetX = c.x + fwd * 2.0;
+  e.targetY = c.y + side * 1.5;
+  e.desiredSpeed = e.maxVel * 0.85;
+}
+
+_actCarry(e, w) {
+  const goalX = e.goalDir * C.AI_FIELD.halfX;
+  // Simple for now — dribble at goal. Pass/shoot evaluation slots in here later.
+  e.targetX = goalX;
+  e.targetY = 0;
+  e.desiredSpeed = e.maxVel;
+}
+
+_actKeep(e, w) {
+  const goalX = -e.goalDir * C.AI_FIELD.halfX;
+  const lineX = goalX + e.goalDir * 0.4;           // just off the line
+  e.targetX = lineX;
+  e.targetY = clamp(w.ball.y, -C.GOAL_HALF, C.GOAL_HALF);  // track ball Y within posts
+  e.desiredSpeed = e.maxVel;
+}
+7. Leash + separation (applied after _act)
+These are post-processing nudges on the target, so every state gets them for free:
+
+js
+_applyLeash(e) {
+  const role = C.ROLES[e.role];
+  const dx = e.targetX - e.homeX;
+  const dy = e.targetY - e.homeY;
+  const d = Math.hypot(dx, dy);
+  if (d > role.leash) {
+    const k = role.leash / d;
+    e.targetX = e.homeX + dx * k;
+    e.targetY = e.homeY + dy * k;
+  }
+}
+
+_applySeparation(e, w) {
+  for (const o of w.entities) {
+    if (o === e || o.team !== e.team || o.isBall) continue;
+    const dx = e.targetX - o.targetX;
+    const dy = e.targetY - o.targetY;
+    const d = Math.hypot(dx, dy) || 0.001;
+    if (d < C.MIN_SPACING) {
+      const push = (C.MIN_SPACING - d) * 0.5;
+      e.targetX += (dx / d) * push;
+      e.targetY += (dy / d) * push;
+    }
+  }
+}
+8. What you gain structurally
+Your old code still exists — it just became _actHold and _actChase. Zero wasted work.
+Each state is ~5 lines and independently tweakable.
+Adding a state is trivial — e.g. RECOVER (sprint back after losing possession) is one case in _decide + one _actRecover.
+Difficulty scaling is just decisionInterval, chaseRadius, and aimError — no behaviour rewrites.
+Debuggable — render e.state as text above each bot and you can instantly see what the AI is thinking.
+Suggested build order
+Add role, state, setState, decisionTimer to Entity
+Move current logic into HOLD + CHASE, wire up _decide/_act skeleton → game should play identically
+Add KEEP (goalkeeper) → immediate visible improvement
+Add PRESS / MARK split → defense stops clumping on the ball
+Add SUPPORT → attacking shape
+Then iterate on CARRY (pass/shoot) — that's the deep one
+Want me to go deeper on _interceptPoint or the CARRY pass/shoot evaluation next? Those are the two with the most interesting math.
+
+B
+State Machine & Entity Improvements
+Great — with this Entity class I can be much more concrete. Your entity is already well-structured (clean steering state, team getters, limits). Let's build on it.
+
+1. Extend the Entity with AI State
+Add a few fields to support per-entity decision making without breaking anything:
+
+js
+export class Entity {
+  constructor({ x = 0, y = 0, angle = 0, mass = 1, radius = 0.2,
+                maxVel = 0.13, team = 'ball', limits = {},
+                role = 'none' }) {
+    // ... existing fields ...
+
+    // --- AI state ---
+    this.role = role;             // 'gk' | 'def' | 'mid' | 'fwd' | 'none'
+    this.state = 'IDLE';          // current FSM state
+    this.stateTime = 0;           // seconds in current state
+    this.nextDecisionAt = 0;      // debounce decisions
+    this.markTarget = null;       // entity to mark
+    this.homeX = 0;               // formation anchor
+    this.homeY = 0;
+    this.lastStateChange = 0;
+  }
+
+  setState(state, now) {
+    if (this.state === state) return;
+    this.state = state;
+    this.stateTime = 0;
+    this.lastStateChange = now;
+  }
+
+  get isBall()  { return this.team === 'ball';  }
+  get isRed()   { return this.team === 'red';   }
+  get isGreen() { return this.team === 'green'; }
+  get isRobot() { return this.team !== 'ball';  }
+}
+I'd also suggest two small helpers that the AI leans on constantly:
+
+js
+distanceTo(other) {
+  return Math.hypot(other.x - this.x, other.y - this.y);
+}
+
+angleTo(other) {
+  return Math.atan2(other.y - this.y, other.x - this.x);
+}
+2. Define States Clearly
+Keep the set small and orthogonal — you can always add more later:
+
+js
+// ai/states.js
+export const S = {
+  IDLE:      'IDLE',       // at home position, nothing to do
+  CHASE:     'CHASE',      // go get the ball
+  INTERCEPT: 'INTERCEPT',  // move to predicted ball position
+  CARRY:     'CARRY',      // has ball, advance / pass / shoot
+  SUPPORT:   'SUPPORT',    // off-ball attacker, offer pass option
+  MARK:      'MARK',       // defender, shadow an opponent
+  COVER:     'COVER',      // defender, guard space/lane
+  RETURN:    'RETURN',     // head back to formation
+  GOALIE:    'GOALIE',     // stay on line, track ball on Y
+};
+3. The Decision Function
+One function decides which state each entity should be in. This is the brain. Keep it a pure function of world state — that makes it testable and easy to reason about.
+
+js
+decideState(e, w) {
+  // Goalkeeper is sticky
+  if (e.role === 'gk') return S.GOALIE;
+
+  // If I have the ball, I carry it
+  if (w.ballCarrier === e) return S.CARRY;
+
+  const myTeamHasBall = w.ballCarrier && w.ballCarrier.team === e.team;
+  const ballDist = e.distanceTo(w.ball);
+  const amClosest = (e === this.closestToBall(e.team, w));
+
+  if (myTeamHasBall) {
+    // Attacking: support the carrier
+    return S.SUPPORT;
+  }
+
+  // Defending or loose ball
+  if (amClosest && ballDist < e.chaseRadius) {
+    // Use interception if ball is moving fast, chase if slow/still
+    return (Math.hypot(w.ball.vx, w.ball.vy) > 0.05) ? S.INTERCEPT : S.CHASE;
+  }
+
+  if (e.role === 'def') return S.MARK;
+  if (e.role === 'mid') return S.COVER;
+  return S.RETURN;
+}
+Notice how the role shapes the decision but doesn't replace it. A defender can still end up in CHASE if they're closest to a loose ball.
+
+4. The Update Loop
+Replace your current update() with something like this:
+
+js
+update(dt) {
+  const w = this.world;
+  const now = w.time;
+
+  // Human aim stays the same
+  const human = w.entities[w.playerIndex];
+  const aim = this.input.getAimWorld(w);
+  human.targetX = aim.x;
+  human.targetY = aim.y;
+
+  for (const e of w.entities) {
+    if (!e.isRobot || e === human) continue;
+    e.stateTime += dt;
+
+    // Debounce decisions (don't re-think every frame)
+    if (now >= e.nextDecisionAt) {
+      const newState = this.decideState(e, w);
+      e.setState(newState, now);
+      e.nextDecisionAt = now + 0.15 + Math.random() * 0.1;
+    }
+
+    this.executeState(e, w, dt);
+  }
+}
+The random jitter on nextDecisionAt prevents all entities from re-deciding on the same frame, which spreads CPU cost and looks more natural.
+
+5. Execute — One Method Per State
+This is where the behavior actually happens. Each method just sets targetX/targetY (and maybe desiredSpeed), leaving your existing steering untouched:
+
+js
+executeState(e, w, dt) {
+  switch (e.state) {
+    case S.GOALIE:    return this.doGoalie(e, w);
+    case S.CHASE:     return this.doChase(e, w);
+    case S.INTERCEPT: return this.doIntercept(e, w);
+    case S.CARRY:     return this.doCarry(e, w);
+    case S.SUPPORT:   return this.doSupport(e, w);
+    case S.MARK:      return this.doMark(e, w);
+    case S.COVER:     return this.doCover(e, w);
+    case S.RETURN:    return this.doReturn(e, w);
+    default:          return this.doIdle(e, w);
+  }
+}
+
+doGoalie(e, w) {
+  const goalX = e.isGreen ? C.AI_FIELD.halfX : -C.AI_FIELD.halfX;
+  // Stay on goal line, track ball Y, clamp to post range
+  e.targetX = goalX * 0.95;
+  e.targetY = Math.max(-0.8, Math.min(0.8, w.ball.y));
+  e.desiredSpeed = e.maxVel;
+}
+
+doChase(e, w) {
+  e.targetX = w.ball.x;
+  e.targetY = w.ball.y;
+  e.desiredSpeed = e.maxVel;
+}
+
+doIntercept(e, w) {
+  const p = this.predictInterceptPoint(e, w.ball);
+  e.targetX = p.x;
+  e.targetY = p.y;
+  e.desiredSpeed = e.maxVel;
+}
+
+doReturn(e, w) {
+  e.targetX = e.homeX;
+  e.targetY = e.homeY;
+  e.desiredSpeed = e.maxVel * 0.7;
+}
+6. Interception Math
+Since your ball has vx/vy, proper interception is cheap:
+
+js
+predictInterceptPoint(e, ball) {
+  // Iterative: find smallest t where entity can reach predicted position
+  let best = { x: ball.x, y: ball.y };
+  for (let t = 0; t < 2; t += 0.1) {
+    const px = ball.x + ball.vx * t;
+    const py = ball.y + ball.vy * t;
+    const dist = Math.hypot(px - e.x, py - e.y);
+    // Can I get there in time?
+    if (dist <= e.maxVel * t * 60) { // assuming 60fps units
+      return { x: px, y: py };
+    }
+    best = { x: px, y: py };
+  }
+  return best; // best effort if we can't catch it
+}
+You can do a closed-form solution (solve a quadratic) but the iterative version is readable and fine for 5 entities.
+
+7. Support Positioning
+A good SUPPORT state transforms off-ball play. Offer a pass option that's both forward and not in a lane an opponent can cut:
+
+js
+doSupport(e, w) {
+  const carrier = w.ballCarrier;
+  const forward = e.isGreen ? -1 : 1;
+
+  // Three candidate "offer" points relative to the carrier
+  const candidates = [
+    { x: carrier.x + forward * 1.5, y: carrier.y + 1.2 },
+    { x: carrier.x + forward * 1.5, y: carrier.y - 1.2 },
+    { x: carrier.x + forward * 2.5, y: carrier.y },
+  ];
+
+  // Pick the one with best openness (furthest from nearest opponent)
+  let best = candidates[0], bestScore = -Infinity;
+  for (const c of candidates) {
+    const opp = this.nearestOpponent(c, e.team, w);
+    const score = opp ? Math.hypot(c.x - opp.x, c.y - opp.y) : 10;
+    if (score > bestScore) { bestScore = score; best = c; }
+  }
+
+  e.targetX = best.x;
+  e.targetY = best.y;
+  e.desiredSpeed = e.maxVel;
+}
+8. Marking
+js
+doMark(e, w) {
+  if (!e.markTarget || e.markTarget === w.ballCarrier === false) {
+    e.markTarget = this.pickMarkTarget(e, w);
+  }
+  if (!e.markTarget) return this.doReturn(e, w);
+
+  // Position between target and own goal
+  const goalX = e.isGreen ? C.AI_FIELD.halfX : -C.AI_FIELD.halfX;
+  const t = 0.4; // 40% of the way from target toward goal
+  e.targetX = e.markTarget.x + (goalX - e.markTarget.x) * t;
+  e.targetY = e.markTarget.y;
+  e.desiredSpeed = e.maxVel;
+}
+
+pickMarkTarget(e, w) {
+  let best = null, bestDist = Infinity;
+  for (const other of w.entities) {
+    if (!other.isRobot || other.team === e.team) continue;
+    const d = e.distanceTo(other);
+    if (d < bestDist) { bestDist = d; best = other; }
+  }
+  return best;
+}
+9. Carrier Behavior
+js
+doCarry(e, w) {
+  const goalX = e.isGreen ? -C.AI_FIELD.halfX : C.AI_FIELD.halfX;
+  const distToGoal = Math.hypot(goalX - e.x, 0 - e.y);
+
+  // Close to goal? Shoot (however your game handles that)
+  if (distToGoal < 2.0 && this.hasShotLane(e, w)) {
+    e.targetX = goalX;
+    e.targetY = 0;
+    this.requestShoot(e);
+    return;
+  }
+
+  // Open teammate ahead? Pass
+  const passTarget = this.bestPassTarget(e, w);
+  if (passTarget) {
+    this.requestPass(e, passTarget);
+    return;
+  }
+
+  // Otherwise dribble toward goal, steering around opponents
+  e.targetX = goalX;
+  e.targetY = e.y * 0.5; // drift toward center line
+  e.desiredSpeed = e.maxVel;
+}
+10. Separation Inside the Entity's Target
+Easy to plug in right before you consume targetX/targetY:
+
+js
+applySeparation(e, w) {
+  const MIN = 0.6;
+  for (const other of w.entities) {
+    if (other === e || other.team !== e.team || !other.isRobot) continue;
+    const dx = e.targetX - other.x;
+    const dy = e.targetY - other.y;
+    const d = Math.hypot(dx, dy);
+    if (d > 0 && d < MIN) {
+      const push = (MIN - d) / MIN;
+      e.targetX += (dx / d) * push * 0.5;
+      e.targetY += (dy / d) * push * 0.5;
+    }
+  }
+}
+Call it after executeState() for each entity.
+
+11. Put It All Together
+Here's the shape of the refactored AI.update():
+
+js
+update(dt) {
+  const w = this.world;
+  const now = w.time;
+
+  // Update world-level flags once
+  this.updateTeamPossession(w);
+
+  // Human
+  const human = w.entities[w.playerIndex];
+  const aim = this.input.getAimWorld(w);
+  human.targetX = aim.x;
+  human.targetY = aim.y;
+
+  // Robots
+  for (const e of w.entities) {
+    if (!e.isRobot || e === human) continue;
+    e.stateTime += dt;
+
+    if (now >= e.nextDecisionAt) {
+      e.setState(this.decideState(e, w), now);
+      e.nextDecisionAt = now + 0.15 + Math.random() * 0.1;
+    }
+
+    this.executeState(e, w, dt);
+    this.applySeparation(e, w);
+  }
+}
+12. Debug Overlay (Do This Early!)
+Honestly the single most valuable thing: draw each robot's state label above them, plus a line to their target. You'll catch 90% of bugs in seconds:
+
+js
+// In your renderer
+drawAIDebug(ctx, e) {
+  ctx.fillText(e.state, e.x, e.y - 0.3);
+  ctx.beginPath();
+  ctx.moveTo(e.x, e.y);
+  ctx.lineTo(e.targetX, e.targetY);
+  ctx.stroke();
+  if (e.markTarget) {
+    ctx.strokeStyle = 'red';
+    ctx.beginPath();
+    ctx.moveTo(e.x, e.y);
+    ctx.lineTo(e.markTarget.x, e.markTarget.y);
+    ctx.stroke();
+  }
+}
+Why this structure works well for your codebase
+Minimal intrusion: The FSM only writes to targetX/targetY/desiredSpeed — your physics and steering code are untouched.
+Role + state composition: Role shapes tendencies, state handles the moment-to-moment job. A defender can still chase a loose ball.
+Per-entity tuning: You can give each entity its own chaseRadius, aggression, etc. without touching the main loop.
+Debouncing: Decisions happen ~6x/sec instead of 60x/sec — cheaper and less jittery.
+Easy to extend: New behavior = new state + new doXxx method. No tangled if/else.
+If you want, next we could look at:
+
+Kicking/passing mechanics that integrate with the CARRY state
+A tiny utility-AI replacement for decideState once you have more behaviors
+Smoother steering (arrival, obstacle avoidance) so the new targets actually look graceful
