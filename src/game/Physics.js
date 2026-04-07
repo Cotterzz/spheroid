@@ -10,6 +10,7 @@ export class Physics {
     this._shotCooldown = 0;
     this._tacklePriority = null;
     this._tacklePriorityTimer = 0;
+    this._carryGrace = 0;
   }
 
   // --- Public actions ---------------------------------------------
@@ -61,6 +62,7 @@ export class Physics {
     if (e.catchCooldown > 0) return false;
     if (w.ballCarrierIndex === tacklerIndex) return false;
     if (!w.ballCarrier) return false;
+    if (this._carryGrace > 0) return false;
 
     const carrier = w.ballCarrier;
     if (carrier.team === e.team) return false;
@@ -101,14 +103,17 @@ export class Physics {
     const facing = e.angle - C.HALF_PI;
     const hx = e.x + w.hook * Math.cos(facing);
     const hy = e.y + w.hook * Math.sin(facing);
-    if (Math.hypot(ball.x - hx, ball.y - hy) > effectiveCatchDist) return false;
+    const hookDist = Math.hypot(ball.x - hx, ball.y - hy);
+    const bodyDist = Math.hypot(ball.x - e.x, ball.y - e.y);
+    if (hookDist > effectiveCatchDist && bodyDist > e.radius + ball.radius) return false;
 
     w.ballCarrier = e;
     w.ballCarrierIndex = robotIndex;
-    if (robotIndex < C.GREEN_RANGE[0]) w.playerIndex = robotIndex;
+    if (w.mode !== 5 && e.isRed) w.playerIndex = robotIndex;
     e.catchCooldown = C.PHYSICS.catchCooldownTicks;
     this._tacklePriority = null;
     this._tacklePriorityTimer = 0;
+    this._carryGrace = C.PHYSICS.carryGraceTicks;
     return true;
   }
 
@@ -118,6 +123,7 @@ export class Physics {
     const w = this.world;
 
     // ---- Per-frame: cooldown ticks ----
+    if (this._carryGrace > 0) this._carryGrace--;
     if (this._tacklePriorityTimer > 0) this._tacklePriorityTimer--;
     for (let i = 1; i < w.entities.length; i++) {
       if (w.entities[i].catchCooldown > 0) w.entities[i].catchCooldown--;
@@ -167,12 +173,19 @@ export class Physics {
     const w = this.world;
     const ents = w.entities;
 
-    // 1. Snap ball to carrier (if any)
+    // 1. Snap ball to carrier (if any), clamping to ball bounds
     if (w.ballCarrier) {
       const c = w.ballCarrier;
       const a = c.angle - C.HALF_PI;
-      w.ball.x = c.x + C.PHYSICS.hookOffset * w.hook * Math.cos(a);
-      w.ball.y = c.y + C.PHYSICS.hookOffset * w.hook * Math.sin(a);
+      let bx = c.x + C.PHYSICS.hookOffset * w.hook * Math.cos(a);
+      let by = c.y + C.PHYSICS.hookOffset * w.hook * Math.sin(a);
+      const L = w.ball.limits;
+      if (bx > L.right) bx = L.right;
+      if (bx < L.left)  bx = L.left;
+      if (by > L.top)    by = L.top;
+      if (by < L.bottom) by = L.bottom;
+      w.ball.x = bx;
+      w.ball.y = by;
     }
 
     // 2. Integrate positions + damp
@@ -291,7 +304,7 @@ export class Physics {
     e.targetDist = Math.hypot(dx, dy);
 
     // Desired speed
-    const isChaser  = (i === w.nearestRed || i === w.nearestGreen) && (w.ballCarrierIndex !== i);
+    const isChaser  = ((w.nearestRed >= 0 && i === w.nearestRed) || (w.nearestGreen >= 0 && i === w.nearestGreen)) && (w.ballCarrierIndex !== i);
     const isCarrier = (w.ballCarrierIndex === i && !isHuman);
     if (e.targetDist > C.PHYSICS.closeDist || isChaser || isCarrier) {
       e.desiredSpeed = e.maxVel;
@@ -327,8 +340,8 @@ export class Physics {
 
   _computeNearest() {
     const w = this.world;
-    w.nearestRed   = nearestIn(w.entities, C.RED_RANGE);
-    w.nearestGreen = nearestIn(w.entities, C.GREEN_RANGE);
+    w.nearestRed   = w.redRange   ? nearestIn(w.entities, w.redRange)   : -1;
+    w.nearestGreen = w.greenRange ? nearestIn(w.entities, w.greenRange) : -1;
   }
 }
 

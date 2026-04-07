@@ -25,16 +25,50 @@
       #score-red   { color: #f88; }
       #score-green { color: #9d9; }
       #score-sep   { color: #aaa; font-size: 16px; }
+
+      #menu {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        z-index: 100;
+        background: rgba(0,0,0,0.7);
+      }
+      #menu button {
+        font: bold 16px/1 monospace;
+        color: #ddd;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.2);
+        padding: 12px 32px;
+        cursor: pointer;
+        width: 200px;
+        letter-spacing: 1px;
+        transition: background 0.15s, color 0.15s;
+      }
+      #menu button:hover {
+        background: rgba(255,255,255,0.18);
+        color: #fff;
+      }
     </style>
   </head>
   <body>
     <div class="divcanvas">
       <canvas id="canvas"></canvas>
-      <div id="scoreboard">
+      <div id="scoreboard" style="display:none;">
         <span id="score-red">0</span>
         <span id="score-sep">:</span>
         <span id="score-green">0</span>
       </div>
+    </div>
+    <div id="menu">
+      <button data-mode="1">Solo</button>
+      <button data-mode="2">Teammate</button>
+      <button data-mode="3">Opponent</button>
+      <button data-mode="4">Match</button>
+      <button data-mode="5">Manager</button>
     </div>
     <script type="module" src="./src/main.js"></script>
   </body>

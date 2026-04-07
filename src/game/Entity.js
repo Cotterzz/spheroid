@@ -1,6 +1,6 @@
 export class Entity {
   constructor({ x = 0, y = 0, angle = 0, mass = 1, radius = 0.2,
-                maxVel = 0.13, team = 'ball', limits = {} }) {
+                maxVel = 0.13, team = 'ball', role = null, limits = {} }) {
     this.x = x;
     this.y = y;
     this.vx = 0;
@@ -10,6 +10,7 @@ export class Entity {
     this.radius = radius;
     this.maxVel = maxVel;
     this.team = team;       // 'ball' | 'red' | 'green'
+    this.role = role;       // 'gk' | 'def' | 'mid' | 'att' | null
     this.limits = limits;   // {top, bottom, left, right}
 
     // Steering state
@@ -22,6 +23,11 @@ export class Entity {
 
     // Tackle/catch state
     this.catchCooldown = 0;
+
+    // Stale detection
+    this.staleX = x;
+    this.staleY = y;
+    this.staleTicks = 0;
   }
 
   get isBall()  { return this.team === 'ball';  }

@@ -45,6 +45,7 @@ export const PHYSICS = {
   tackleImpulse: 0.15,
   catchCooldownTicks: 30,
   tacklePriorityTicks: 18,
+  carryGraceTicks: 60,
 };
 
 // Formation tables indexed by entity id (0 unused). Values 0..2, where
@@ -59,6 +60,10 @@ export const FORMATIONS = {
     y: [0, 1,   1.7, 0.3, 0.7, 1.3, 0.3, 1.7, 0.5, 1.5, 1],
   },
 };
+
+export const MIN_SPACING = 3.0;
+export const STALE_THRESHOLD = 0.15;
+export const STALE_TICKS = 90;
 
 // AI targets are placed in a rectangle slightly smaller than the world
 export const AI_FIELD = { halfX: 9.6, halfY: 5.4 };

@@ -27,6 +27,7 @@ export class Input {
     (this._listeners[event] ||= []).push(cb);
     return this;
   }
+  clearListeners() { this._listeners = {}; }
   emit(event, ...args) {
     (this._listeners[event] || []).forEach(cb => cb(...args));
   }

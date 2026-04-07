@@ -4,39 +4,62 @@ import { AI }         from './game/AI.js';
 import { Input }      from './input/Input.js';
 import { Renderer }   from './render/Renderer.js';
 
-const canvas    = document.querySelector('#canvas');
-const container = document.querySelector('.divcanvas');
-const scoreEls  = {
+const canvas      = document.querySelector('#canvas');
+const container   = document.querySelector('.divcanvas');
+const menuEl      = document.querySelector('#menu');
+const scoreboardEl = document.querySelector('#scoreboard');
+const scoreEls    = {
   red:   document.querySelector('#score-red'),
   green: document.querySelector('#score-green'),
 };
 
-const world    = createWorld();
-const physics  = new Physics(world);
 const input    = new Input(container);
-const ai       = new AI(world, input, physics);
 const renderer = new Renderer(canvas);
-
-input.on('actionDown',   () => physics.slow());
-input.on('actionUp',     () => physics.fast());
-input.on('actionBDown',  () => {
-  const pi = world.playerIndex;
-  if (world.ballCarrier && world.ballCarrierIndex !== pi) {
-    physics.tackle(pi);
-  } else if (!world.ballCarrier) {
-    physics.catch(pi);
-  }
-});
-input.on('pointerEnter', () => startLoop());
-input.on('pointerLeave', () => stopLoop());
 window.addEventListener('resize', () => renderer.resize());
+
+let world, physics, ai;
+let rafId = null, then = 0, time = 0, accumulator = 0;
 
 const FIXED_DT = 1 / 60;
 
-let rafId = null;
-let then  = 0;
-let time  = 0;
-let accumulator = 0;
+function startGame(mode) {
+  stopLoop();
+
+  world   = createWorld(mode);
+  physics = new Physics(world);
+  ai      = new AI(world, input, physics);
+
+  input.clearListeners();
+
+  const hasHuman = world.playerIndex > 0;
+
+  if (hasHuman) {
+    input.on('actionDown',  () => physics.slow());
+    input.on('actionUp',    () => physics.fast());
+    input.on('actionBDown', () => {
+      const pi = world.playerIndex;
+      if (world.ballCarrier && world.ballCarrierIndex !== pi) {
+        physics.tackle(pi);
+      } else if (!world.ballCarrier) {
+        physics.catch(pi);
+      }
+    });
+  }
+
+  input.on('pointerEnter', () => startLoop());
+  input.on('pointerLeave', () => stopLoop());
+
+  menuEl.style.display = 'none';
+  scoreboardEl.style.display = '';
+  scoreEls.red.textContent = '0';
+  scoreEls.green.textContent = '0';
+  prevRed = 0;
+  prevGreen = 0;
+  time = 0;
+
+  renderer.draw(world, time);
+  startLoop();
+}
 
 function loop(now) {
   rafId = null;
@@ -47,7 +70,8 @@ function loop(now) {
 
   while (accumulator >= FIXED_DT) {
     input.update();
-    if (input.triggerValue > 0.1 && world.ballCarrierIndex === world.playerIndex) {
+    if (input.triggerValue > 0.1 && world.playerIndex > 0
+        && world.ballCarrierIndex === world.playerIndex) {
       world.power = input.triggerValue;
     }
     ai.update();
@@ -89,6 +113,8 @@ function updateScoreboard() {
   }
 }
 
-// Render one frame, then pause until the user interacts
-startLoop();
-requestAnimationFrame(stopLoop);
+menuEl.addEventListener('click', e => {
+  const btn = e.target.closest('button[data-mode]');
+  if (!btn) return;
+  startGame(parseInt(btn.dataset.mode, 10));
+});
