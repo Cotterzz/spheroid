@@ -1,0 +1,39 @@
+We need to rethink the AI, it is based on very simple, kinda fudged foundations. Further development has improved it slightly but not enough.
+We should redraw the original plan but with more detail:
+
+A. Gamestates (or whatever nomenclature is appropriate)
+
+1. I have the ball
+2. teammate has the ball
+3. Same but I'm closest
+4. Opponents have the ball
+5. No-one has the ball, I am closest.
+6. No-one has the ball, I am second closest.
+7. Goal scored, get into starting position.
+
+B. Player roles
+
+1. Attack, R L
+2. Defend, R L
+3. Goalkeeper
+
+C. Targets.
+
+This is a great abstraction, targets *can* teleport, but the players just turn round with new heading, which is smooth.
+We also need firing targets, for passing and shooting, and logic to determine which/when/if.
+
+Possibly even multiple move targets that give player options, taking the nearest?
+
+the way we organise states with movement targets should be a big part of this.
+
+eg, 1. i have the ball:
+
+1. I want to move into empty space, away from other players on both sides, preferably up the field, but if I see a good shooting or passing opportunity (player is in better place than me, or i need to send it back in retreat/defense) I should take it. Also move backward if absolutely necessary to avoid opponents.
+
+It gets complex because we need a set of priorities for all states and all roles. Then we need to make sure the mechanics work too.
+
+What do you think?
+can you expand on this for a complete plan?
+How much of the existing logic is consistent with this?
+Is a from scratch rewrite of the AI perhaps a good idea now I'm being more ambitious with the AI?
+Are there considerations that should have been adopted from the beginning?
