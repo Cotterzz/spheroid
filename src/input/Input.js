@@ -125,11 +125,10 @@ export class Input {
       const h = world.entities[world.playerIndex];
       return { x: h.x + this.stickX * 2, y: h.y - this.stickY * 2 };
     }
-    const W = WORLD.halfWidth  * 2;
-    const H = WORLD.halfHeight * 2;
+    const rect = this.element.getBoundingClientRect();
     return {
-      x: (this.pointerX / window.innerWidth)  * W - WORLD.halfWidth,
-      y: (this.pointerY / window.innerHeight) * H - WORLD.halfHeight,
+      x: (this.pointerX / rect.width)  * (WORLD.halfWidth * 2)  - WORLD.halfWidth,
+      y: (this.pointerY / rect.height) * (WORLD.halfHeight * 2) - WORLD.halfHeight,
     };
   }
 }

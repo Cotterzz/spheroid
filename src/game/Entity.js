@@ -9,11 +9,11 @@ export class Entity {
     this.mass = mass;
     this.radius = radius;
     this.maxVel = maxVel;
-    this.team = team;       // 'ball' | 'red' | 'green'
-    this.role = role;       // 'gk' | 'def' | 'mid' | 'att' | null
-    this.limits = limits;   // {top, bottom, left, right}
+    this.team = team;
+    this.role = role;
+    this.limits = limits;
 
-    // Steering state
+    // Steering state (consumed by physics _thinkRobot)
     this.targetX = 0;
     this.targetY = 0;
     this.targetDist = 0;
@@ -24,10 +24,13 @@ export class Entity {
     // Tackle/catch state
     this.catchCooldown = 0;
 
-    // Stale detection
-    this.staleX = x;
-    this.staleY = y;
-    this.staleTicks = 0;
+    // FSM state
+    this.state = 'RESET';
+    this.decisionTimer = 0;
+    this.homeX = x;
+    this.homeY = y;
+    this.goalDir = team === 'red' ? 1 : -1;
+    this.markTarget = null;
   }
 
   get isBall()  { return this.team === 'ball';  }

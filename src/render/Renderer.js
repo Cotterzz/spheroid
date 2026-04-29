@@ -35,20 +35,32 @@ export class Renderer {
   }
 
   resize() {
+    const TARGET_AR = (2 * C.WORLD.halfWidth) / (2 * C.WORLD.halfHeight);
+    const winW = window.innerWidth;
+    const winH = window.innerHeight;
+
+    let w, h;
+    if (winW / winH > TARGET_AR) {
+      h = winH;
+      w = Math.floor(h * TARGET_AR);
+    } else {
+      w = winW;
+      h = Math.floor(w / TARGET_AR);
+    }
+
     const dpr = Math.floor(window.devicePixelRatio) || 1;
     let scale = dpr;
-    const pix = window.innerWidth * window.innerHeight;
-    if (pix > 2e6) scale = 2 * dpr;
-    if (pix > 4e6) scale = 3 * dpr;
-    if (pix > 8e6) scale = 4 * dpr;
+    if (w * h > 2e6) scale = 2 * dpr;
+    if (w * h > 4e6) scale = 3 * dpr;
+    if (w * h > 8e6) scale = 4 * dpr;
     this.pixScale = scale;
 
-    this.canvas.width  = window.innerWidth  / scale;
-    this.canvas.height = window.innerHeight / scale;
+    this.canvas.width  = w / scale;
+    this.canvas.height = h / scale;
     this.ar = this.canvas.width / this.canvas.height;
     this.canvas.style.imageRendering = 'pixelated';
-    this.canvas.style.width  = window.innerWidth  + 'px';
-    this.canvas.style.height = window.innerHeight + 'px';
+    this.canvas.style.width  = w + 'px';
+    this.canvas.style.height = h + 'px';
   }
 
   _worldToShaderX(x) { return this.ar * (x + C.WORLD.halfWidth)  / (2 * C.WORLD.halfWidth); }

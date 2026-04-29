@@ -24,11 +24,13 @@ export class Physics {
 
   fast() {
     const w = this.world;
-    const wasPlayerCarrier = w.ballCarrierIndex === w.playerIndex;
+    const wasSlowing = w.slowing;
     w.delta = C.PHYSICS.defaultDelta;
     w.hook  = C.PHYSICS.postShootHook;
     w.slowing = false;
-    if (wasPlayerCarrier) this.shoot(w.entities[w.playerIndex]);
+    if (wasSlowing && w.ballCarrierIndex === w.playerIndex) {
+      this.shoot(w.entities[w.playerIndex]);
+    }
   }
 
   shoot(carrier) {
@@ -67,8 +69,16 @@ export class Physics {
     const carrier = w.ballCarrier;
     if (carrier.team === e.team) return false;
 
-    const dist = Math.hypot(carrier.x - e.x, carrier.y - e.y);
+    const tdx = e.x - carrier.x, tdy = e.y - carrier.y;
+    const dist = Math.hypot(tdx, tdy);
     if (dist > C.PHYSICS.tackleDist) return false;
+
+    const carrierFacing = carrier.angle - C.HALF_PI;
+    const angleToTackler = Math.atan2(tdy, tdx);
+    let facingDiff = angleToTackler - carrierFacing;
+    if (facingDiff >  C.PI) facingDiff -= C.TWO_PI;
+    if (facingDiff < -C.PI) facingDiff += C.TWO_PI;
+    if (Math.abs(facingDiff) < 1.2) return false;
 
     const impulse = Math.max(w.power, C.PHYSICS.tackleImpulse);
     const a = carrier.angle - C.HALF_PI;
@@ -97,8 +107,8 @@ export class Physics {
 
     const ball = w.ball;
     const ballSpeed = Math.hypot(ball.vx, ball.vy);
-    const speedPenalty = Math.min(ballSpeed / C.PHYSICS.maxPower, 1.0);
-    const effectiveCatchDist = C.PHYSICS.catchDist * (1.0 - speedPenalty * 0.7);
+    const speedPenalty = Math.min(ballSpeed / 0.5, 1.0);
+    const effectiveCatchDist = C.PHYSICS.catchDist * (1.0 - speedPenalty * 0.5);
 
     const facing = e.angle - C.HALF_PI;
     const hx = e.x + w.hook * Math.cos(facing);
@@ -274,19 +284,6 @@ export class Physics {
   }
 
   _updateBall() {
-    const w = this.world;
-    if (!w.ballCarrier) return;
-    const c = w.ballCarrier;
-    const a = c.angle - C.HALF_PI;
-    const hx = c.x + w.hook * Math.cos(a);
-    const hy = c.y + w.hook * Math.sin(a);
-    const dx = w.ball.x - hx, dy = w.ball.y - hy;
-    if (Math.hypot(dx, dy) > C.PHYSICS.releaseDist) {
-      w.ball.vx = c.vx;
-      w.ball.vy = c.vy;
-      w.ballCarrier = null;
-      w.ballCarrierIndex = 0;
-    }
   }
 
   _thinkRobot(i, e) {
@@ -299,14 +296,46 @@ export class Physics {
     // Target vector
     const dx = e.targetX - e.x;
     const dy = e.targetY - e.y;
-    e.targetAngle = Math.atan2(dy, dx);
-    e.angle = e.angle % C.TWO_PI;
     e.targetDist = Math.hypot(dx, dy);
+    e.angle = e.angle % C.TWO_PI;
+
+    e.targetAngle = Math.atan2(dy, dx);
+
+    if (isHuman) {
+      const speed = Math.min(e.targetDist * 0.3, e.maxVel);
+      if (e.targetDist > 0.01) {
+        e.vx = (dx / e.targetDist) * speed;
+        e.vy = (dy / e.targetDist) * speed;
+      } else {
+        e.vx = 0;
+        e.vy = 0;
+      }
+      e.desiredSpeed = speed;
+      const facing = e.angle - C.HALF_PI;
+      const diff = wrapAngle(e.targetAngle - facing);
+      e.angle += diff / 10 * w.delta;
+      return;
+    }
 
     // Desired speed
     const isChaser  = ((w.nearestRed >= 0 && i === w.nearestRed) || (w.nearestGreen >= 0 && i === w.nearestGreen)) && (w.ballCarrierIndex !== i);
-    const isCarrier = (w.ballCarrierIndex === i && !isHuman);
-    if (e.targetDist > C.PHYSICS.closeDist || isChaser || isCarrier) {
+    const isCarrier = (w.ballCarrierIndex === i);
+
+    const facing = e.angle - C.HALF_PI;
+    let diff = wrapAngle(e.targetAngle - facing);
+
+    if (isCarrier) {
+      const speed = Math.min(e.targetDist * 0.3, e.maxVel);
+      if (e.targetDist > 0.01) {
+        e.vx = (dx / e.targetDist) * speed;
+        e.vy = (dy / e.targetDist) * speed;
+      }
+      e.desiredSpeed = speed;
+      e.angle += diff / 10 * w.delta;
+      return;
+    }
+
+    if (e.targetDist > C.PHYSICS.closeDist || isChaser) {
       e.desiredSpeed = e.maxVel;
     } else {
       e.desiredSpeed = e.maxVel * (e.targetDist / C.PHYSICS.closeDist);
@@ -315,8 +344,6 @@ export class Physics {
     // Steering toward target
     const wantVX = e.desiredSpeed * Math.cos(e.targetAngle);
     const wantVY = e.desiredSpeed * Math.sin(e.targetAngle);
-    const facing = e.angle - C.HALF_PI;
-    let diff = wrapAngle(e.targetAngle - facing);
 
     if (Math.abs(diff) < C.PHYSICS.angleLockThreshold) {
       e.vx += (wantVX - e.vx) / C.PHYSICS.agility;
@@ -325,7 +352,7 @@ export class Physics {
     let angleInc = diff / 10;
 
     // Close to destination (AI): re-orient toward the ball
-    if (e.targetDist < 1 && !isHuman) {
+    if (e.targetDist < 1) {
       const bAng = Math.atan2(ball.y - e.y, ball.x - e.x);
       angleInc = wrapAngle(bAng - facing) / 10;
     }

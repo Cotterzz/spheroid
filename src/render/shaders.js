@@ -164,8 +164,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
     vec2 centre = vec2(ar/2.0, 0.5);
     float radius = 0.0;
     float rightAng = 1.5708;
-    float dradius = 0.048;
-    float bradius = 0.02;
+    float dradius = 0.024;
+    float bradius = 0.01;
     vec2 distv;
     vec3 normal = vec3(0.0,0.0,1.0);
     vec3 bgnormal = vec3(0.0,0.0,1.0);

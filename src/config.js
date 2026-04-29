@@ -2,13 +2,13 @@ export const HALF_PI = Math.PI / 2;
 export const TWO_PI  = Math.PI * 2;
 export const PI      = Math.PI;
 
-export const NUM_ENTITIES = 11;         // 1 ball + 10 robots
+export const NUM_ENTITIES = 11;
 export const BALL_INDEX   = 0;
-export const RED_RANGE    = [1, 6];     // [start, end)
+export const RED_RANGE    = [1, 6];
 export const GREEN_RANGE  = [6, 11];
 
-export const BALL_RADIUS  = 0.2;
-export const ROB_RADIUS   = 0.7;
+export const BALL_RADIUS  = 0.1;
+export const ROB_RADIUS   = 0.35;
 export const BALL_MASS    = 1;
 export const ROB_MASS     = 5;
 
@@ -22,48 +22,46 @@ export const WORLD = {
 
 export const PHYSICS = {
   damp: 0.98,
-  maxVel: 0.13,
+  maxVel: 0.10,
   stopV: 0.0001,
   agility: 2,
-  closeDist: 3,
+  closeDist: 1.5,
   defaultDelta: 0.7,
-  defaultHook: 0.9,
+  defaultHook: 0.45,
   defaultPower: 0.1,
-  postShootHook: 1.0,
+  postShootHook: 0.5,
   slowDecay: 0.98,
   powerGrowth: 1.02,
   minDelta: 0.1,
-  minHook: 0.9,
-  maxPower: 1.0,
+  minHook: 0.45,
+  maxPower: 2.0,
   hookOffset: 1.3,
-  pickupDist: 0.3,
-  releaseDist: 0.4,
-  shootDist: 1.0,
+  pickupDist: 0.15,
+  releaseDist: 0.5,
+  shootDist: 1.5,
   angleLockThreshold: 1.9,
-  tackleDist: 1.5,
-  catchDist: 0.5,
+  tackleDist: 1.2,
+  catchDist: 0.3,
   tackleImpulse: 0.15,
   catchCooldownTicks: 30,
   tacklePriorityTicks: 18,
   carryGraceTicks: 60,
 };
 
-// Formation tables indexed by entity id (0 unused). Values 0..2, where
-// 0 = own goal, 1 = ball position, 2 = opponent goal.
-export const FORMATIONS = {
-  attack:  {
-    x: [0, 0.2, 0.4, 0.6, 0.8, 1.2, 1.5, 1.5, 1.8, 1.8, 1.9],
-    y: [0, 1,   1.5, 0.5, 1.7, 0.3, 1.3, 0.7, 0.3, 1.7, 1],
-  },
-  defense: {
-    x: [0, 0.1, 0.2, 0.2, 0.5, 0.5, 0.8, 1.2, 1.4, 1.6, 1.8],
-    y: [0, 1,   1.7, 0.3, 0.7, 1.3, 0.3, 1.7, 0.5, 1.5, 1],
-  },
+export const ROLES = {
+  gk:  { markBlend: 0.2, supportFwd: 0.5, chaseLeash: 2.0,  rushDist: 2.5 },
+  def: { markBlend: 0.3, supportFwd: 1.5, chaseLeash: 5.0 },
+  mid: { markBlend: 0.5, supportFwd: 2.5, chaseLeash: 8.0 },
+  att: { markBlend: 0.7, supportFwd: 3.5, chaseLeash: 12.0 },
 };
 
-export const MIN_SPACING = 3.0;
-export const STALE_THRESHOLD = 0.15;
-export const STALE_TICKS = 90;
+export const AI = {
+  decisionInterval: 10,
+  separationDist: 3.0,
+  shootRange: 4.0,
+  passLaneWidth: 0.8,
+  avoidRadius: 1.5,
+  avoidStrength: 0.5,
+};
 
-// AI targets are placed in a rectangle slightly smaller than the world
 export const AI_FIELD = { halfX: 9.6, halfY: 5.4 };

@@ -5,7 +5,14 @@
     <title>Index</title>
     <style>
       body { background-color: #000; overflow: hidden; margin: 0; padding: 0; }
-      .divcanvas { position: relative; }
+      .divcanvas {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #000;
+      }
       #scoreboard {
         position: fixed;
         top: 12px;

@@ -13,7 +13,7 @@ const scoreEls    = {
   green: document.querySelector('#score-green'),
 };
 
-const input    = new Input(container);
+const input    = new Input(canvas);
 const renderer = new Renderer(canvas);
 window.addEventListener('resize', () => renderer.resize());
 
